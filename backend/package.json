@@ -1,0 +1,55 @@
+{
+  "name": "smart-contract-auditor-backend",
+  "version": "1.0.0",
+  "description": "AI-powered Smart Contract Security Auditor Backend with LLM integration",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest",
+    "lint": "eslint src/",
+    "audit:security": "npm audit"
+  },
+  "keywords": [
+    "smart-contract",
+    "security",
+    "auditor",
+    "blockchain",
+    "web3",
+    "solidity",
+    "vulnerability",
+    "llm",
+    "ai"
+  ],
+  "author": "Smart Contract Auditor Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "dotenv": "^16.3.1",
+    "ethers": "^6.8.1",
+    "web3": "^4.2.2",
+    "@solidity-parser/parser": "^0.20.1",
+    "axios": "^1.6.2",
+    "joi": "^17.11.0",
+    "winston": "^3.11.0",
+    "fs-extra": "^11.1.1",
+    "moment": "^2.29.4",
+    "rate-limiter-flexible": "^7.1.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "jest": "^29.7.0",
+    "eslint": "^8.54.0",
+    "supertest": "^6.3.3"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/smart-contract-auditor"
+  }
+}
