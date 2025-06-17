@@ -1,0 +1,2 @@
+2025-06-16 04:51:18.251 [ERROR]: Failed to initialize TEE Monitor {"service":"smart-contract-auditor","environment":"development","error":"crypto.createCipher is not a function"}
+2025-06-16 04:52:38.337 [ERROR]: Failed to initialize TEE Monitor {"service":"smart-contract-auditor","environment":"development","error":"crypto.createCipherGCM is not a function"}
