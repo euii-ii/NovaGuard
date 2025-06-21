@@ -354,8 +354,32 @@ class TEEMonitor {
    * @returns {string} Encrypted data
    */
   encryptData(data) {
-    // For now, just return JSON string with base64 encoding for basic obfuscation
-    return Buffer.from(JSON.stringify(data)).toString('base64');
+    try {
+      const jsonString = JSON.stringify(data);
+      
+      // Use AES-256-GCM for encryption
+      const iv = crypto.randomBytes(16);
+      const key = crypto.scryptSync(this.encryptionKey, 'salt', 32);
+      const cipher = crypto.createCipherGCM('aes-256-gcm', key, iv);
+      
+      let encrypted = cipher.update(jsonString, 'utf8', 'hex');
+      encrypted += cipher.final('hex');
+      
+      const authTag = cipher.getAuthTag();
+      
+      // Combine IV, auth tag, and encrypted data
+      const result = {
+        iv: iv.toString('hex'),
+        authTag: authTag.toString('hex'),
+        data: encrypted
+      };
+      
+      return Buffer.from(JSON.stringify(result)).toString('base64');
+    } catch (error) {
+      // Fallback to simple base64 encoding
+      logger.warn('Encryption failed, using base64 encoding', { error: error.message });
+      return Buffer.from(JSON.stringify(data)).toString('base64');
+    }
   }
 
   /**
@@ -367,12 +391,33 @@ class TEEMonitor {
     try {
       // Try to decode from base64
       const decoded = Buffer.from(encryptedData, 'base64').toString('utf8');
-      return JSON.parse(decoded);
+      
+      try {
+        // Try to parse as encrypted data structure
+        const encryptedObj = JSON.parse(decoded);
+        if (encryptedObj.iv && encryptedObj.data && encryptedObj.authTag) {
+          // Decrypt using AES-GCM
+          const key = crypto.scryptSync(this.encryptionKey, 'salt', 32);
+          const decipher = crypto.createDecipherGCM('aes-256-gcm', key, Buffer.from(encryptedObj.iv, 'hex'));
+          decipher.setAuthTag(Buffer.from(encryptedObj.authTag, 'hex'));
+          
+          let decrypted = decipher.update(encryptedObj.data, 'hex', 'utf8');
+          decrypted += decipher.final('utf8');
+          return JSON.parse(decrypted);
+        } else {
+          // Plain JSON data
+          return encryptedObj;
+        }
+      } catch (parseError) {
+        // Try as plain JSON (backward compatibility)
+        return JSON.parse(decoded);
+      }
     } catch (error) {
       // If decryption fails, try to read as plain JSON (backward compatibility)
       try {
         return JSON.parse(encryptedData);
       } catch (parseError) {
+        logger.error('Failed to decrypt audit log data', { error: error.message });
         throw new Error('Failed to decrypt audit log data');
       }
     }

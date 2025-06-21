@@ -1,341 +1,512 @@
 const express = require('express');
 const Joi = require('joi');
 const auditEngine = require('../services/auditEngine');
-const teeMonitor = require('../services/teeMonitor');
-const web3Service = require('../services/web3Service');
+const aiAnalysisPipeline = require('../services/aiAnalysisPipeline');
+const multiChainWeb3Service = require('../services/multiChainWeb3Service');
+const defiAnalysisEngine = require('../services/defiAnalysisEngine');
+const jwtAuth = require('../middleware/jwtAuth');
+const advancedRateLimiter = require('../middleware/advancedRateLimiter');
+const _teeMonitor = require('../services/teeMonitor');
 const logger = require('../utils/logger');
 
 const router = express.Router();
 
-// Validation schemas
-const contractAuditSchema = Joi.object({
-  contractCode: Joi.string().required().min(1).max(1048576), // 1MB limit
-  options: Joi.object({
-    includeGasOptimization: Joi.boolean().default(true),
-    includeCodeQuality: Joi.boolean().default(true),
-    severityFilter: Joi.array().items(Joi.string().valid('Low', 'Medium', 'High', 'Critical')),
-  }).default({}),
+// Apply rate limiting to all routes
+router.use(advancedRateLimiter.createRateLimitMiddleware());
+
+// Enhanced validation schemas
+const contractAnalysisSchema = Joi.object({
+  contractCode: Joi.string().required().min(10).max(1000000),
+  contractName: Joi.string().optional().max(100),
+  chain: Joi.string().valid(
+    'ethereum', 'polygon', 'bsc', 'arbitrum', 'optimism', 'base', 'zksync',
+    'sepolia', 'mumbai'
+  ).default('ethereum'),
+  agents: Joi.array().items(
+    Joi.string().valid('security', 'quality', 'economics', 'defi', 'crossChain', 'mev')
+  ).optional(),
+  analysisMode: Joi.string().valid('quick', 'comprehensive', 'defi-focused').default('comprehensive'),
+  priority: Joi.string().valid('low', 'normal', 'high').default('normal')
 });
 
-const addressAuditSchema = Joi.object({
+const addressAnalysisSchema = Joi.object({
   contractAddress: Joi.string().required().pattern(/^0x[a-fA-F0-9]{40}$/),
-  chain: Joi.string().valid('ethereum', 'polygon', 'bsc', 'sepolia', 'mumbai', 'bscTestnet').default('ethereum'),
-  options: Joi.object({
-    includeGasOptimization: Joi.boolean().default(true),
-    includeCodeQuality: Joi.boolean().default(true),
-    severityFilter: Joi.array().items(Joi.string().valid('Low', 'Medium', 'High', 'Critical')),
-  }).default({}),
+  chain: Joi.string().valid(
+    'ethereum', 'polygon', 'bsc', 'arbitrum', 'optimism', 'base', 'zksync',
+    'sepolia', 'mumbai'
+  ).default('ethereum'),
+  agents: Joi.array().items(
+    Joi.string().valid('security', 'quality', 'economics', 'defi', 'crossChain', 'mev')
+  ).optional(),
+  analysisMode: Joi.string().valid('quick', 'comprehensive', 'defi-focused').default('comprehensive'),
+  includeCrossChain: Joi.boolean().default(true)
 });
 
-const historyQuerySchema = Joi.object({
-  startDate: Joi.date().iso(),
-  endDate: Joi.date().iso(),
-  status: Joi.string().valid('completed', 'failed'),
-  riskLevel: Joi.string().valid('Low', 'Medium', 'High', 'Critical'),
-  contractAddress: Joi.string().pattern(/^0x[a-fA-F0-9]{40}$/),
-  limit: Joi.number().integer().min(1).max(100).default(20),
-  offset: Joi.number().integer().min(0).default(0),
+const multiAgentAnalysisSchema = Joi.object({
+  contractCode: Joi.string().required().min(10).max(1000000),
+  agents: Joi.array().items(
+    Joi.string().valid('security', 'quality', 'economics', 'defi', 'crossChain', 'mev')
+  ).required().min(1),
+  analysisMode: Joi.string().valid('parallel', 'sequential').default('parallel'),
+  aggregationStrategy: Joi.string().valid('weighted', 'consensus', 'best-of').default('weighted')
 });
 
 /**
- * POST /api/audit/contract
- * Audit smart contract from source code
+ * POST /api/v1/contracts/analyze
+ * Enhanced multi-chain contract analysis with AI agents
  */
-router.post('/contract', async (req, res) => {
+router.post('/analyze', async (req, res) => {
   try {
-    // Validate request
-    const { error, value } = contractAuditSchema.validate(req.body);
+    const { error, value } = contractAnalysisSchema.validate(req.body);
     if (error) {
       return res.status(400).json({
+        success: false,
         error: 'Validation failed',
-        details: error.details.map(d => d.message),
+        details: error.details.map(d => d.message)
       });
     }
 
-    const { contractCode, options } = value;
+    const { contractCode, contractName, chain, agents, analysisMode, priority } = value;
 
-    logger.info('Contract audit request received', {
+    logger.info('Enhanced contract analysis requested', {
       codeLength: contractCode.length,
-      ip: req.ip,
+      chain,
+      agents,
+      analysisMode,
+      ip: req.ip
     });
 
-    // Perform audit
-    const auditResult = await auditEngine.auditContract(contractCode, options);
-
-    // Filter results based on severity filter
-    if (options.severityFilter && options.severityFilter.length > 0) {
-      auditResult.vulnerabilities = auditResult.vulnerabilities.filter(
-        vuln => options.severityFilter.includes(vuln.severity)
-      );
-    }
-
-    logger.info('Contract audit completed', {
-      auditId: auditResult.auditId,
-      score: auditResult.overallScore,
-      vulnerabilities: auditResult.vulnerabilities.length,
+    // Use the enhanced audit engine with AI pipeline
+    const auditResult = await auditEngine.auditContract(contractCode, {
+      contractName,
+      chain,
+      agents,
+      analysisMode,
+      priority,
+      contractData: { chain }
     });
 
     res.json({
       success: true,
-      data: auditResult,
+      data: {
+        ...auditResult,
+        analysisType: 'enhanced-multi-agent',
+        supportedChains: Object.keys(multiChainWeb3Service.getSupportedChains())
+      }
     });
 
   } catch (error) {
-    logger.error('Contract audit failed', { error: error.message });
+    logger.error('Enhanced contract analysis failed', { 
+      error: error.message,
+      stack: error.stack,
+      ip: req.ip
+    });
+
     res.status(500).json({
-      error: 'Audit failed',
-      message: error.message,
+      success: false,
+      error: 'Analysis failed',
+      message: error.message
     });
   }
 });
 
 /**
- * POST /api/audit/address
- * Audit deployed contract by address
+ * POST /api/v1/contracts/analyze-address
+ * Multi-chain contract analysis by address
  */
-router.post('/address', async (req, res) => {
+router.post('/analyze-address', async (req, res) => {
   try {
-    // Validate request
-    const { error, value } = addressAuditSchema.validate(req.body);
+    const { error, value } = addressAnalysisSchema.validate(req.body);
     if (error) {
       return res.status(400).json({
+        success: false,
         error: 'Validation failed',
-        details: error.details.map(d => d.message),
+        details: error.details.map(d => d.message)
       });
     }
 
-    const { contractAddress, chain, options } = value;
+    const { contractAddress, chain, agents, analysisMode, includeCrossChain } = value;
 
-    logger.info('Address audit request received', {
+    logger.info('Multi-chain address analysis requested', {
       contractAddress,
       chain,
-      ip: req.ip,
+      agents,
+      includeCrossChain,
+      ip: req.ip
     });
 
-    // Check if chain is supported
-    if (!web3Service.isChainSupported(chain)) {
-      return res.status(400).json({
-        error: 'Unsupported chain',
-        message: `Chain '${chain}' is not supported`,
-        supportedChains: Object.keys(web3Service.getSupportedChains()),
-      });
-    }
-
-    // Perform audit
-    const auditResult = await auditEngine.auditContractByAddress(
-      contractAddress, 
-      chain, 
-      options
-    );
-
-    // Filter results based on severity filter
-    if (options.severityFilter && options.severityFilter.length > 0) {
-      auditResult.vulnerabilities = auditResult.vulnerabilities.filter(
-        vuln => options.severityFilter.includes(vuln.severity)
-      );
-    }
-
-    logger.info('Address audit completed', {
-      auditId: auditResult.auditId,
-      contractAddress,
-      chain,
-      score: auditResult.overallScore,
+    // Use enhanced audit engine with multi-chain support
+    const auditResult = await auditEngine.auditContractByAddress(contractAddress, chain, {
+      agents,
+      analysisMode,
+      includeCrossChain,
+      useMultiChain: true
     });
 
     res.json({
       success: true,
-      data: auditResult,
+      data: {
+        ...auditResult,
+        analysisType: 'multi-chain-address',
+        chainInfo: multiChainWeb3Service.chainConfigs[chain]
+      }
     });
 
   } catch (error) {
-    logger.error('Address audit failed', { 
+    logger.error('Multi-chain address analysis failed', { 
       error: error.message,
       contractAddress: req.body.contractAddress,
       chain: req.body.chain,
+      ip: req.ip
     });
 
-    // Provide specific error messages for common issues
-    let statusCode = 500;
-    let errorMessage = error.message;
-
-    if (error.message.includes('Invalid contract address')) {
-      statusCode = 400;
-    } else if (error.message.includes('No contract found')) {
-      statusCode = 404;
-      errorMessage = 'No contract found at the specified address';
-    } else if (error.message.includes('Unsupported chain')) {
-      statusCode = 400;
-    }
-
-    res.status(statusCode).json({
-      error: 'Audit failed',
-      message: errorMessage,
+    res.status(500).json({
+      success: false,
+      error: 'Address analysis failed',
+      message: error.message
     });
   }
 });
 
 /**
- * GET /api/audit/history
- * Get audit history with filtering
+ * POST /api/v1/ai/multi-agent-analysis
+ * Direct multi-agent AI analysis
  */
-router.get('/history', async (req, res) => {
+router.post('/multi-agent-analysis', async (req, res) => {
   try {
-    // Validate query parameters
-    const { error, value } = historyQuerySchema.validate(req.query);
+    const { error, value } = multiAgentAnalysisSchema.validate(req.body);
     if (error) {
       return res.status(400).json({
+        success: false,
         error: 'Validation failed',
-        details: error.details.map(d => d.message),
+        details: error.details.map(d => d.message)
       });
     }
 
-    logger.info('Audit history request', { filters: value, ip: req.ip });
+    const { contractCode, agents, analysisMode, aggregationStrategy } = value;
 
-    // Get audit history
-    const history = await teeMonitor.getAuditHistory(value);
+    logger.info('Multi-agent AI analysis requested', {
+      codeLength: contractCode.length,
+      agents,
+      analysisMode,
+      ip: req.ip
+    });
+
+    // Use AI analysis pipeline directly
+    const analysisResult = await aiAnalysisPipeline.analyzeContract({
+      contractCode,
+      agents,
+      analysisMode,
+      aggregationStrategy
+    });
 
     res.json({
       success: true,
       data: {
-        audits: history,
-        pagination: {
-          limit: value.limit,
-          offset: value.offset,
-          total: history.length,
-        },
-        filters: value,
-      },
+        ...analysisResult,
+        analysisType: 'direct-multi-agent'
+      }
     });
 
   } catch (error) {
-    logger.error('Failed to get audit history', { error: error.message });
+    logger.error('Multi-agent AI analysis failed', { 
+      error: error.message,
+      agents: req.body.agents,
+      ip: req.ip
+    });
+
     res.status(500).json({
-      error: 'Failed to retrieve audit history',
-      message: error.message,
+      success: false,
+      error: 'AI analysis failed',
+      message: error.message
     });
   }
 });
 
 /**
- * GET /api/audit/statistics
- * Get audit statistics and analytics
+ * POST /api/v1/defi/analyze
+ * DeFi-specific protocol analysis
  */
-router.get('/statistics', async (req, res) => {
+router.post('/defi-analyze', async (req, res) => {
   try {
-    logger.info('Audit statistics request', { ip: req.ip });
-
-    const statistics = await teeMonitor.getAuditStatistics();
-
-    if (!statistics) {
-      return res.status(503).json({
-        error: 'Statistics unavailable',
-        message: 'TEE Monitor is disabled or statistics could not be generated',
+    const { error, value } = contractAnalysisSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: error.details.map(d => d.message)
       });
     }
 
-    res.json({
-      success: true,
-      data: statistics,
+    const { contractCode, contractName, chain } = value;
+
+    logger.info('DeFi-specific analysis requested', {
+      codeLength: contractCode.length,
+      chain,
+      ip: req.ip
     });
 
-  } catch (error) {
-    logger.error('Failed to get audit statistics', { error: error.message });
-    res.status(500).json({
-      error: 'Failed to retrieve statistics',
-      message: error.message,
-    });
-  }
-});
+    // Parse contract first
+    const contractParser = require('../services/contractParser');
+    const parseResult = await contractParser.parseContract(contractCode);
 
-/**
- * GET /api/audit/chains
- * Get supported blockchain networks
- */
-router.get('/chains', (req, res) => {
-  try {
-    const supportedChains = web3Service.getSupportedChains();
-    
-    res.json({
-      success: true,
-      data: {
-        chains: supportedChains,
-        total: Object.keys(supportedChains).length,
-      },
-    });
-
-  } catch (error) {
-    logger.error('Failed to get supported chains', { error: error.message });
-    res.status(500).json({
-      error: 'Failed to retrieve supported chains',
-      message: error.message,
-    });
-  }
-});
-
-/**
- * POST /api/audit/verify-integrity
- * Verify audit log integrity
- */
-router.post('/verify-integrity', async (req, res) => {
-  try {
-    logger.info('Integrity verification request', { ip: req.ip });
-
-    const verification = await teeMonitor.verifyIntegrity();
-
-    res.json({
-      success: true,
-      data: verification,
-    });
-
-  } catch (error) {
-    logger.error('Failed to verify integrity', { error: error.message });
-    res.status(500).json({
-      error: 'Integrity verification failed',
-      message: error.message,
-    });
-  }
-});
-
-/**
- * GET /api/audit/health
- * Health check for audit services
- */
-router.get('/health', async (req, res) => {
-  try {
-    const health = {
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      services: {
-        auditEngine: 'operational',
-        teeMonitor: teeMonitor.enabled ? 'operational' : 'disabled',
-        web3Service: 'operational',
-        llmService: 'operational',
-      },
-      supportedChains: Object.keys(web3Service.getSupportedChains()),
+    // Get contract data
+    const contractData = {
+      sourceCode: { sourceCode: contractCode },
+      chain,
+      address: 'analysis-only'
     };
 
-    // Test LLM service
+    // Run DeFi-specific analysis
+    const defiAnalysis = await defiAnalysisEngine.analyzeDeFiContract(contractData, parseResult);
+
+    res.json({
+      success: true,
+      data: {
+        ...defiAnalysis,
+        analysisType: 'defi-specialized',
+        contractInfo: {
+          name: contractName,
+          chain,
+          functions: parseResult.functions?.length || 0,
+          events: parseResult.events?.length || 0
+        }
+      }
+    });
+
+  } catch (error) {
+    logger.error('DeFi analysis failed', { 
+      error: error.message,
+      ip: req.ip
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'DeFi analysis failed',
+      message: error.message
+    });
+  }
+});
+
+
+
+/**
+ * GET /api/v1/chains/supported
+ * Get all supported blockchain networks
+ */
+router.get('/chains/supported',
+  jwtAuth.optionalAuth,
+  (req, res) => {
+    try {
+      const supportedChains = multiChainWeb3Service.getSupportedChains();
+
+      res.json({
+        success: true,
+        data: {
+          chains: supportedChains,
+          totalChains: Object.keys(supportedChains).length,
+          mainnetChains: Object.values(supportedChains).filter(c => c.type === 'mainnet').length,
+          layer2Chains: Object.values(supportedChains).filter(c => c.type === 'layer2').length,
+          testnetChains: Object.values(supportedChains).filter(c => c.type === 'testnet').length,
+          userAccess: {
+            userId: req.user?.id,
+            role: req.user?.role,
+            canAccessTestnets: req.user?.role !== 'anonymous'
+          }
+        }
+      });
+    } catch (error) {
+      logger.error('Failed to get supported chains', { error: error.message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve supported chains'
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/v1/agents/available
+ * Get available AI agents and their capabilities
+ */
+router.get('/agents/available',
+  jwtAuth.optionalAuth,
+  (req, res) => {
     try {
       const llmService = require('../services/llmService');
       const modelInfo = llmService.getModelInfo();
-      health.services.llmService = modelInfo.configured ? 'operational' : 'not-configured';
-      health.llmModel = modelInfo.model;
+
+      res.json({
+        success: true,
+        data: {
+          availableAgents: {
+            security: 'Core security vulnerability detection and exploit prevention',
+            quality: 'Code quality analysis and gas optimization recommendations',
+            economics: 'Economic security, tokenomics analysis, and incentive mechanism review',
+            defi: 'DeFi protocol-specific vulnerability detection (AMM, lending, yield farming)',
+            crossChain: 'Cross-chain bridge security and multi-chain vulnerability analysis',
+            mev: 'MEV extraction detection, frontrunning, and sandwich attack analysis'
+          },
+          modelConfiguration: modelInfo,
+          analysisCapabilities: {
+            parallelAnalysis: true,
+            crossChainSupport: true,
+            defiSpecialization: true,
+            realTimeMonitoring: false, // To be implemented in Phase 4
+            confidenceScoring: true,
+            consensusAggregation: true
+          },
+          userAccess: {
+            userId: req.user?.id,
+            role: req.user?.role,
+            availableAgents: this.getAvailableAgentsForUser(req.user),
+            maxConcurrentAgents: this.getMaxAgentsForUser(req.user)
+          }
+        }
+      });
     } catch (error) {
-      health.services.llmService = 'error';
+      logger.error('Failed to get agent information', { error: error.message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve agent information'
+      });
     }
-
-    res.json({
-      success: true,
-      data: health,
-    });
-
-  } catch (error) {
-    logger.error('Health check failed', { error: error.message });
-    res.status(500).json({
-      error: 'Health check failed',
-      message: error.message,
-    });
   }
-});
+);
+
+/**
+ * GET /api/v1/user/rate-limit-status
+ * Get current rate limit status for authenticated user
+ */
+router.get('/user/rate-limit-status',
+  jwtAuth.authenticate,
+  async (req, res) => {
+    try {
+      const status = await advancedRateLimiter.getRateLimitStatus(req.user, req.ip);
+
+      res.json({
+        success: true,
+        data: {
+          rateLimitStatus: status,
+          userInfo: {
+            userId: req.user.id,
+            role: req.user.role,
+            permissions: req.user.permissions
+          },
+          recommendations: this.getRateLimitRecommendations(status)
+        }
+      });
+    } catch (error) {
+      logger.error('Failed to get rate limit status', {
+        error: error.message,
+        userId: req.user.id
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve rate limit status'
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/v1/auth/api-key
+ * Generate API key for service-to-service authentication (admin only)
+ */
+router.post('/auth/api-key',
+  jwtAuth.authenticate,
+  jwtAuth.authorize(['admin', 'enterprise']),
+  async (req, res) => {
+    try {
+      const { serviceName, permissions } = req.body;
+
+      if (!serviceName) {
+        return res.status(400).json({
+          success: false,
+          error: 'Service name is required'
+        });
+      }
+
+      const apiKey = jwtAuth.createApiKey({
+        name: serviceName,
+        permissions: permissions || ['read', 'analyze'],
+        createdBy: req.user.id
+      });
+
+      logger.info('API key created', {
+        serviceName,
+        permissions,
+        createdBy: req.user.id,
+        ip: req.ip
+      });
+
+      res.json({
+        success: true,
+        data: {
+          apiKey,
+          serviceName,
+          permissions,
+          expiresIn: '1 year',
+          usage: 'Include in Authorization header as: Bearer <api-key>'
+        }
+      });
+
+    } catch (error) {
+      logger.error('Failed to create API key', {
+        error: error.message,
+        userId: req.user.id
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to create API key'
+      });
+    }
+  }
+);
+
+/**
+ * Helper methods
+ */
+router.getAvailableAgentsForUser = function(user) {
+  if (!user || user.role === 'anonymous') {
+    return ['security', 'quality'];
+  }
+
+  if (user.role === 'premium' || user.role === 'enterprise') {
+    return ['security', 'quality', 'economics', 'defi', 'crossChain', 'mev'];
+  }
+
+  return ['security', 'quality', 'economics'];
+};
+
+router.getMaxAgentsForUser = function(user) {
+  if (!user || user.role === 'anonymous') {
+    return 2;
+  }
+  if (user.role === 'premium' || user.role === 'enterprise') {
+    return 6;
+  }
+  return 4;
+};
+
+router.getRateLimitRecommendations = function(status) {
+  if (!status) {
+    return [];
+  }
+
+  const recommendations = [];
+
+  if (status.remainingPoints < 5) {
+    recommendations.push('Consider upgrading to premium for higher rate limits');
+  }
+
+  if (status.limiterType === 'anonymous') {
+    recommendations.push('Sign up for an account to get higher rate limits');
+  }
+
+  return recommendations;
+};
 
 module.exports = router;

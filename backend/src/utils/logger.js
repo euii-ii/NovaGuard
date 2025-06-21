@@ -233,8 +233,10 @@ const cleanupOldLogs = () => {
   }
 };
 
-// Run cleanup daily
-setInterval(cleanupOldLogs, 24 * 60 * 60 * 1000);
+// Run cleanup daily (only in non-test environments)
+if (process.env.NODE_ENV !== 'test') {
+  setInterval(cleanupOldLogs, 24 * 60 * 60 * 1000);
+}
 
 // Export logger instance
 module.exports = logger;

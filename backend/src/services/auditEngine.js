@@ -1,6 +1,9 @@
 const contractParser = require('./contractParser');
 const llmService = require('./llmService');
+const aiAnalysisPipeline = require('./aiAnalysisPipeline');
 const web3Service = require('./web3Service');
+const multiChainWeb3Service = require('./multiChainWeb3Service');
+const dataPersistenceService = require('./dataPersistenceService');
 const teeMonitor = require('./teeMonitor');
 const logger = require('../utils/logger');
 
@@ -32,11 +35,17 @@ class AuditEngine {
       // Parse contract
       const parseResult = await contractParser.parseContract(contractCode);
 
-      // Perform LLM analysis
-      const llmAnalysis = await llmService.analyzeContract(contractCode, parseResult);
+      // Perform enhanced AI analysis using multi-agent pipeline
+      const aiAnalysis = await aiAnalysisPipeline.analyzeContract({
+        contractCode,
+        contractAddress: options.contractAddress,
+        chain: options.chain,
+        agents: options.agents,
+        analysisMode: options.analysisMode || 'comprehensive'
+      });
 
-      // Combine static analysis and LLM results
-      const combinedAnalysis = this.combineAnalysisResults(parseResult, llmAnalysis);
+      // Combine static analysis and AI results
+      const combinedAnalysis = this.combineAnalysisResults(parseResult, aiAnalysis);
 
       // Calculate final scores
       const scores = this.calculateSecurityScores(combinedAnalysis);
@@ -46,21 +55,52 @@ class AuditEngine {
         auditId,
         contractCode,
         parseResult,
-        llmAnalysis,
+        aiAnalysis,
         combinedAnalysis,
         scores,
         options,
         executionTime: Date.now() - startTime,
       });
 
+      // Save analysis result to database
+      try {
+        await dataPersistenceService.saveAnalysisResult({
+          analysisId: auditId,
+          contractCode,
+          contractAddress: options.contractAddress,
+          chain: options.chain,
+          analysisType: aiAnalysis.analysisType || 'multi-agent',
+          overallScore: auditReport.overallScore,
+          riskLevel: auditReport.riskLevel,
+          confidenceScore: aiAnalysis.confidenceScore,
+          vulnerabilities: auditReport.vulnerabilities,
+          recommendations: auditReport.recommendations,
+          gasOptimizations: auditReport.gasOptimizations,
+          codeQuality: auditReport.codeQuality,
+          metadata: {
+            agentsUsed: aiAnalysis.metadata?.agentsUsed || [],
+            failedAgents: aiAnalysis.metadata?.failedAgents || [],
+            executionTime: Date.now() - startTime,
+            analysisVersion: '2.0.0',
+            aggregationMethod: 'weighted-consensus'
+          }
+        }, options.userId);
+      } catch (error) {
+        logger.error('Failed to save analysis result to database', {
+          error: error.message,
+          auditId
+        });
+        // Don't fail the audit if database save fails
+      }
+
       // Log audit to TEE monitor
       await teeMonitor.logAudit(auditReport);
 
-      logger.info('Contract audit completed', { 
-        auditId, 
+      logger.info('Contract audit completed', {
+        auditId,
         score: scores.overall,
         vulnerabilities: combinedAnalysis.vulnerabilities.length,
-        executionTime: Date.now() - startTime 
+        executionTime: Date.now() - startTime
       });
 
       return auditReport;
@@ -286,14 +326,14 @@ class AuditEngine {
   }
 
   /**
-   * Combine static analysis and LLM results
+   * Combine static analysis and AI analysis results
    * @param {Object} parseResult - Parser results
-   * @param {Object} llmAnalysis - LLM analysis results
+   * @param {Object} aiAnalysis - AI analysis results from multi-agent pipeline
    * @returns {Object} Combined analysis
    */
-  combineAnalysisResults(parseResult, llmAnalysis) {
+  combineAnalysisResults(parseResult, aiAnalysis) {
     // Merge vulnerabilities from both sources
-    const staticVulns = parseResult.staticAnalysis.findings.map(finding => ({
+    const staticVulns = (parseResult?.staticAnalysis?.findings || []).map(finding => ({
       name: `Static Analysis: ${finding.category}`,
       description: `Pattern detected: ${finding.pattern}`,
       severity: finding.severity,
@@ -304,21 +344,55 @@ class AuditEngine {
       confidence: 'High',
     }));
 
-    const llmVulns = llmAnalysis.vulnerabilities.map(vuln => ({
+    const aiVulns = aiAnalysis.vulnerabilities.map(vuln => ({
       ...vuln,
-      source: 'llm',
+      source: 'ai-multi-agent',
+      detectedBy: vuln.detectedBy || 'unknown-agent',
     }));
 
     // Deduplicate similar vulnerabilities
-    const allVulns = [...staticVulns, ...llmVulns];
+    const allVulns = [...staticVulns, ...aiVulns];
     const deduplicatedVulns = this.deduplicateVulnerabilities(allVulns);
+
+    // Calculate combined metrics
+    const combinedMetrics = {
+      totalVulnerabilities: deduplicatedVulns.length,
+      agentContributions: this.calculateAgentContributions(aiVulns),
+      staticFindings: staticVulns.length,
+      aiFindings: aiVulns.length,
+    };
 
     return {
       vulnerabilities: deduplicatedVulns,
+      metrics: combinedMetrics,
       staticAnalysis: parseResult.staticAnalysis,
-      llmAnalysis,
+      aiAnalysis,
       contractInfo: parseResult,
+      combinedAt: new Date().toISOString(),
     };
+  }
+
+  /**
+   * Calculate agent contributions to vulnerability detection
+   * @param {Array} aiVulns - AI-detected vulnerabilities
+   * @returns {Object} Agent contribution statistics
+   */
+  calculateAgentContributions(aiVulns) {
+    const contributions = {};
+
+    aiVulns.forEach(vuln => {
+      const agent = vuln.detectedBy || 'unknown';
+      if (!contributions[agent]) {
+        contributions[agent] = {
+          count: 0,
+          severities: { Critical: 0, High: 0, Medium: 0, Low: 0 }
+        };
+      }
+      contributions[agent].count++;
+      contributions[agent].severities[vuln.severity || 'Medium']++;
+    });
+
+    return contributions;
   }
 
   /**
@@ -366,7 +440,7 @@ class AuditEngine {
       riskLevel,
       severityCounts,
       totalVulnerabilities: vulnerabilities.length,
-      codeQuality: analysis.llmAnalysis.codeQuality?.score || 70,
+      codeQuality: analysis.aiAnalysis?.codeQuality?.score || 70,
     };
   }
 
@@ -405,15 +479,19 @@ class AuditEngine {
       overallScore: data.scores.overall,
       riskLevel: data.scores.riskLevel,
       severityCounts: data.scores.severityCounts,
-      summary: data.llmAnalysis.summary || 'Security analysis completed',
-      recommendations: data.llmAnalysis.recommendations || [],
-      gasOptimizations: data.llmAnalysis.gasOptimizations || [],
-      codeQuality: data.llmAnalysis.codeQuality || {},
+      summary: data.aiAnalysis.summary || 'Multi-agent AI security analysis completed',
+      recommendations: data.aiAnalysis.recommendations || [],
+      gasOptimizations: data.aiAnalysis.gasOptimizations || [],
+      codeQuality: data.aiAnalysis.codeQuality || {},
       staticAnalysis: data.parseResult.staticAnalysis,
-      llmAnalysis: {
-        model: data.llmAnalysis.model,
-        analyzedAt: data.llmAnalysis.analyzedAt,
+      aiAnalysis: {
+        analysisType: data.aiAnalysis.analysisType || 'multi-agent-ai',
+        agentsUsed: data.aiAnalysis.metadata?.agentsUsed || [],
+        failedAgents: data.aiAnalysis.metadata?.failedAgents || [],
+        analysisVersion: data.aiAnalysis.metadata?.analysisVersion || '2.0.0',
+        analyzedAt: data.aiAnalysis.analyzedAt || new Date().toISOString(),
       },
+      agentContributions: data.combinedAnalysis.metrics?.agentContributions || {},
       timestamp: new Date().toISOString(),
       executionTime: data.executionTime,
     };
@@ -428,4 +506,7 @@ class AuditEngine {
   }
 }
 
-module.exports = new AuditEngine();
+const auditEngineInstance = new AuditEngine();
+auditEngineInstance.AuditEngine = AuditEngine;
+
+module.exports = auditEngineInstance;
