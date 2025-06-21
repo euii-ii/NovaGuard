@@ -250,18 +250,26 @@ class AuditEngine {
    * @returns {Object} Bytecode analysis results
    */
   analyzeBytecode(bytecode) {
+    // Ensure bytecode is a string
+    if (!bytecode || typeof bytecode !== 'string') {
+      bytecode = '';
+    }
+
+    // Remove 0x prefix if present
+    const cleanBytecode = bytecode.startsWith('0x') ? bytecode.slice(2) : bytecode;
+
     const patterns = {
-      hasSelfdestruct: /ff/.test(bytecode),
-      hasDelegatecall: /f4/.test(bytecode),
-      hasCreate2: /f5/.test(bytecode),
-      hasExtcodecopy: /3c/.test(bytecode),
-      hasExtcodesize: /3b/.test(bytecode),
-      hasBalance: /31/.test(bytecode),
-      hasCallvalue: /34/.test(bytecode),
+      hasSelfdestruct: /ff/.test(cleanBytecode),
+      hasDelegatecall: /f4/.test(cleanBytecode),
+      hasCreate2: /f5/.test(cleanBytecode),
+      hasExtcodecopy: /3c/.test(cleanBytecode),
+      hasExtcodesize: /3b/.test(cleanBytecode),
+      hasBalance: /31/.test(cleanBytecode),
+      hasCallvalue: /34/.test(cleanBytecode),
     };
 
-    const size = bytecode.length / 2; // Convert hex to bytes
-    const complexity = this.estimateBytecodeComplexity(bytecode);
+    const size = cleanBytecode.length / 2; // Convert hex to bytes
+    const complexity = this.estimateBytecodeComplexity(cleanBytecode);
 
     return {
       size,
@@ -484,36 +492,75 @@ class AuditEngine {
    * @returns {Object} Formatted audit report
    */
   generateAuditReport(data) {
+    // Ensure parseResult exists with default values
+    const parseResult = data.parseResult || {
+      contracts: [],
+      functions: [],
+      modifiers: [],
+      events: [],
+      codeMetrics: { complexity: 0, codeLines: 0 },
+      staticAnalysis: { findings: [] }
+    };
+
+    // Ensure aiAnalysis exists with default values
+    const aiAnalysis = data.aiAnalysis || {
+      summary: 'Multi-agent AI security analysis completed',
+      recommendations: [],
+      gasOptimizations: [],
+      codeQuality: {},
+      analysisType: 'multi-agent-ai',
+      metadata: {
+        agentsUsed: [],
+        failedAgents: [],
+        analysisVersion: '2.0.0'
+      }
+    };
+
+    // Ensure scores exist with default values
+    const scores = data.scores || {
+      overall: 70,
+      riskLevel: 'Medium',
+      severityCounts: { Critical: 0, High: 0, Medium: 0, Low: 0 }
+    };
+
+    // Ensure combinedAnalysis exists with default values
+    const combinedAnalysis = data.combinedAnalysis || {
+      vulnerabilities: [],
+      metrics: {
+        agentContributions: {}
+      }
+    };
+
     return {
       auditId: data.auditId,
       status: 'completed',
       type: 'full-analysis',
       contractInfo: {
-        name: data.parseResult.contracts[0]?.name || 'Unknown',
-        functions: data.parseResult.functions.length,
-        modifiers: data.parseResult.modifiers.length,
-        events: data.parseResult.events.length,
-        complexity: data.parseResult.codeMetrics.complexity,
-        linesOfCode: data.parseResult.codeMetrics.codeLines,
-        ...data.options.contractData,
+        name: parseResult.contracts[0]?.name || 'Unknown',
+        functions: parseResult.functions.length,
+        modifiers: parseResult.modifiers.length,
+        events: parseResult.events.length,
+        complexity: parseResult.codeMetrics.complexity,
+        linesOfCode: parseResult.codeMetrics.codeLines,
+        ...data.options?.contractData,
       },
-      vulnerabilities: data.combinedAnalysis.vulnerabilities,
-      overallScore: data.scores.overall,
-      riskLevel: data.scores.riskLevel,
-      severityCounts: data.scores.severityCounts,
-      summary: data.aiAnalysis.summary || 'Multi-agent AI security analysis completed',
-      recommendations: data.aiAnalysis.recommendations || [],
-      gasOptimizations: data.aiAnalysis.gasOptimizations || [],
-      codeQuality: data.aiAnalysis.codeQuality || {},
-      staticAnalysis: data.parseResult.staticAnalysis,
+      vulnerabilities: combinedAnalysis.vulnerabilities,
+      overallScore: scores.overall,
+      riskLevel: scores.riskLevel,
+      severityCounts: scores.severityCounts,
+      summary: aiAnalysis.summary,
+      recommendations: aiAnalysis.recommendations,
+      gasOptimizations: aiAnalysis.gasOptimizations,
+      codeQuality: aiAnalysis.codeQuality,
+      staticAnalysis: parseResult.staticAnalysis,
       aiAnalysis: {
-        analysisType: data.aiAnalysis.analysisType || 'multi-agent-ai',
-        agentsUsed: data.aiAnalysis.metadata?.agentsUsed || [],
-        failedAgents: data.aiAnalysis.metadata?.failedAgents || [],
-        analysisVersion: data.aiAnalysis.metadata?.analysisVersion || '2.0.0',
-        analyzedAt: data.aiAnalysis.analyzedAt || new Date().toISOString(),
+        analysisType: aiAnalysis.analysisType || 'multi-agent-ai',
+        agentsUsed: aiAnalysis.metadata?.agentsUsed || [],
+        failedAgents: aiAnalysis.metadata?.failedAgents || [],
+        analysisVersion: aiAnalysis.metadata?.analysisVersion || '2.0.0',
+        analyzedAt: aiAnalysis.analyzedAt || new Date().toISOString(),
       },
-      agentContributions: data.combinedAnalysis.metrics?.agentContributions || {},
+      agentContributions: combinedAnalysis.metrics?.agentContributions || {},
       timestamp: new Date().toISOString(),
       executionTime: data.executionTime,
     };
@@ -863,12 +910,60 @@ ${rec.description}
     // For now, return HTML content as PDF would require additional dependencies
     // In production, you would use libraries like puppeteer or pdfkit
     const htmlContent = this.generateHTMLReport(auditResults, options);
-    
+
     logger.warn('PDF generation not implemented, returning HTML content', {
       auditId: auditResults.auditId
     });
-    
+
     return Buffer.from(htmlContent, 'utf8');
+  }
+
+  /**
+   * Get chain ID for a given chain name
+   * @param {string} chain - Chain name
+   * @returns {number} Chain ID
+   */
+  getChainId(chain) {
+    const chainIds = {
+      'ethereum': 1,
+      'polygon': 137,
+      'bsc': 56,
+      'arbitrum': 42161,
+      'optimism': 10,
+      'base': 8453,
+      'aptos': 1,
+      'solana': 101,
+      'sui': 1
+    };
+    return chainIds[chain] || 1;
+  }
+
+  /**
+   * Validate and normalize score
+   * @param {number} score - Score to validate
+   * @returns {number} Normalized score
+   */
+  validateScore(score) {
+    return Math.max(0, Math.min(100, score || 0));
+  }
+
+  /**
+   * Validate risk level
+   * @param {string} riskLevel - Risk level to validate
+   * @returns {string} Valid risk level
+   */
+  validateRiskLevel(riskLevel) {
+    const validLevels = ['Low', 'Medium', 'High', 'Critical'];
+    return validLevels.includes(riskLevel) ? riskLevel : 'Medium';
+  }
+
+  /**
+   * Validate confidence score
+   * @param {number} score - Confidence score to validate
+   * @returns {number} Normalized confidence score
+   */
+  validateConfidenceScore(score) {
+    return Math.max(0, Math.min(1, score || 0.5));
   }
 }
 
@@ -878,17 +973,32 @@ const auditEngineInstance = new AuditEngine();
 module.exports = auditEngineInstance;
 module.exports.AuditEngine = AuditEngine;
 
+// Export properties for direct access
+module.exports.maxContractSize = auditEngineInstance.maxContractSize;
+module.exports.vulnerabilityThresholds = auditEngineInstance.vulnerabilityThresholds;
+
 // Export individual methods for direct access
 module.exports.auditContract = auditEngineInstance.auditContract.bind(auditEngineInstance);
 module.exports.auditContractByAddress = auditEngineInstance.auditContractByAddress.bind(auditEngineInstance);
-module.exports.performComprehensiveAudit = auditEngineInstance.performComprehensiveAudit.bind(auditEngineInstance);
-module.exports.getAuditResults = auditEngineInstance.getAuditResults.bind(auditEngineInstance);
-module.exports.getAuditHistory = auditEngineInstance.getAuditHistory.bind(auditEngineInstance);
-module.exports.generateReport = auditEngineInstance.generateReport.bind(auditEngineInstance);
-module.exports.generateJSONReport = auditEngineInstance.generateJSONReport.bind(auditEngineInstance);
-module.exports.generateHTMLReport = auditEngineInstance.generateHTMLReport.bind(auditEngineInstance);
-module.exports.generateMarkdownReport = auditEngineInstance.generateMarkdownReport.bind(auditEngineInstance);
-module.exports.generatePDFReport = auditEngineInstance.generatePDFReport.bind(auditEngineInstance);
+module.exports.analyzeBytecode = auditEngineInstance.analyzeBytecode.bind(auditEngineInstance);
+module.exports.combineAnalysisResults = auditEngineInstance.combineAnalysisResults.bind(auditEngineInstance);
+module.exports.calculateSecurityScores = auditEngineInstance.calculateSecurityScores.bind(auditEngineInstance);
+module.exports.generateAuditReport = auditEngineInstance.generateAuditReport.bind(auditEngineInstance);
+module.exports.generateAuditId = auditEngineInstance.generateAuditId.bind(auditEngineInstance);
+module.exports.validateContractInput = auditEngineInstance.validateContractInput.bind(auditEngineInstance);
+module.exports.calculateRiskLevel = auditEngineInstance.calculateRiskLevel.bind(auditEngineInstance);
+module.exports.getChainId = auditEngineInstance.getChainId.bind(auditEngineInstance);
+module.exports.validateScore = auditEngineInstance.validateScore.bind(auditEngineInstance);
+module.exports.validateRiskLevel = auditEngineInstance.validateRiskLevel.bind(auditEngineInstance);
+module.exports.validateConfidenceScore = auditEngineInstance.validateConfidenceScore.bind(auditEngineInstance);
+module.exports.performComprehensiveAudit = auditEngineInstance.performComprehensiveAudit?.bind(auditEngineInstance);
+module.exports.getAuditResults = auditEngineInstance.getAuditResults?.bind(auditEngineInstance);
+module.exports.getAuditHistory = auditEngineInstance.getAuditHistory?.bind(auditEngineInstance);
+module.exports.generateReport = auditEngineInstance.generateReport?.bind(auditEngineInstance);
+module.exports.generateJSONReport = auditEngineInstance.generateJSONReport?.bind(auditEngineInstance);
+module.exports.generateHTMLReport = auditEngineInstance.generateHTMLReport?.bind(auditEngineInstance);
+module.exports.generateMarkdownReport = auditEngineInstance.generateMarkdownReport?.bind(auditEngineInstance);
+module.exports.generatePDFReport = auditEngineInstance.generatePDFReport?.bind(auditEngineInstance);
 
 // Export initialization method
 module.exports.initialize = async function(options = {}) {

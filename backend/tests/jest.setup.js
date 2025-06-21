@@ -16,6 +16,11 @@ process.env.RATE_LIMIT_API_POINTS = '999999';
 process.env.RATE_LIMIT_HEAVY_POINTS = '999999';
 process.env.RATE_LIMIT_BURST_POINTS = '999999';
 
+// Fix EventEmitter memory leak warnings
+const { EventEmitter } = require('events');
+EventEmitter.defaultMaxListeners = 20; // Increase default max listeners
+process.setMaxListeners(20); // Increase process max listeners
+
 // Setup service mocks before any tests run
 beforeAll(() => {
   setupServiceMocks();

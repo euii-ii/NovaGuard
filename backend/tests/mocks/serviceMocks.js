@@ -587,31 +587,8 @@ function setupServiceMocks() {
   // Mock Parser Services
   jest.mock('../../src/services/contractParser', () => mockContractParser);
   
-  // Mock audit engine
-  jest.mock('../../src/services/auditEngine', () => ({
-    performComprehensiveAudit: jest.fn().mockResolvedValue({
-      auditId: 'audit-123',
-      contractName: 'TestContract',
-      vulnerabilities: [],
-      overallScore: 85,
-      riskLevel: 'Low'
-    }),
-    getAuditResults: jest.fn().mockResolvedValue({
-      auditId: 'audit-123',
-      contractName: 'TestContract',
-      vulnerabilities: [],
-      overallScore: 85,
-      riskLevel: 'Low'
-    }),
-    getAuditHistory: jest.fn().mockResolvedValue({
-      audits: [],
-      total: 0
-    }),
-    generateReport: jest.fn().mockResolvedValue({
-      format: 'json',
-      data: {}
-    })
-  }));
+  // Note: Audit engine is not mocked - we test the real implementation
+  // Only its dependencies are mocked
   
   // Mock advanced rate limiter
   jest.mock('../../src/middleware/advancedRateLimiter', () => ({

@@ -1,6 +1,6 @@
 // Using Jest's built-in expect instead of chai
 const sinon = require('sinon');
-const AuditEngine = require('../../src/services/auditEngine');
+const auditEngineService = require('../../src/services/auditEngine');
 
 // Mock dependencies
 const contractParser = require('../../src/services/contractParser');
@@ -26,7 +26,7 @@ describe('AuditEngine Service', () => {
 
   beforeAll(async () => {
     await setupTestEnvironment();
-    auditEngine = AuditEngine;
+    auditEngine = auditEngineService;
   });
 
   afterAll(async () => {

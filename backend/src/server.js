@@ -35,16 +35,30 @@ const collaborativeToolsRoutes = require('./controllers/collaborativeToolsContro
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Security middleware
+// Security middleware with enhanced production settings
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ['\'self\''],
       styleSrc: ['\'self\'', '\'unsafe-inline\''],
       scriptSrc: ['\'self\''],
-      imgSrc: ['\'self\'', 'data:', 'https:']
+      imgSrc: ['\'self\'', 'data:', 'https:'],
+      connectSrc: ['\'self\'', 'https://api.openrouter.ai'],
+      fontSrc: ['\'self\'', 'https:', 'data:'],
+      objectSrc: ['\'none\''],
+      mediaSrc: ['\'self\''],
+      frameSrc: ['\'none\'']
     },
   },
+  crossOriginEmbedderPolicy: false, // Allow for API integrations
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  noSniff: true,
+  frameguard: { action: 'deny' },
+  xssFilter: true
 }));
 
 // CORS configuration
@@ -57,19 +71,97 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }));
 
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Body parsing middleware with enhanced security
+app.use(express.json({
+  limit: '10mb',
+  strict: true,
+  type: 'application/json'
+}));
+app.use(express.urlencoded({
+  extended: true,
+  limit: '10mb',
+  parameterLimit: 100
+}));
+
+// Input sanitization middleware
+app.use((req, res, next) => {
+  // Sanitize request body
+  if (req.body && typeof req.body === 'object') {
+    req.body = sanitizeObject(req.body);
+  }
+
+  // Sanitize query parameters
+  if (req.query && typeof req.query === 'object') {
+    req.query = sanitizeObject(req.query);
+  }
+
+  next();
+});
+
+// Helper function to sanitize objects recursively
+function sanitizeObject(obj) {
+  if (typeof obj !== 'object' || obj === null) {
+    return typeof obj === 'string' ? sanitizeString(obj) : obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeObject(item));
+  }
+
+  const sanitized = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const sanitizedKey = sanitizeString(key);
+    sanitized[sanitizedKey] = sanitizeObject(value);
+  }
+  return sanitized;
+}
+
+// Helper function to sanitize strings
+function sanitizeString(str) {
+  if (typeof str !== 'string') return str;
+
+  return str
+    .trim()
+    .replace(/[<>]/g, '') // Remove potential XSS characters
+    .replace(/javascript:/gi, '') // Remove javascript: protocol
+    .replace(/on\w+=/gi, '') // Remove event handlers
+    .substring(0, 10000); // Limit string length
+}
 
 // Rate limiting
 app.use(rateLimiter);
 
-// Request logging
+// Performance monitoring middleware
 app.use((req, res, next) => {
-  logger.info(`${req.method} ${req.path} - ${req.ip}`, {
-    userAgent: req.get('User-Agent'),
-    timestamp: new Date().toISOString(),
-  });
+  const startTime = Date.now();
+
+  // Override res.end to capture response time
+  const originalEnd = res.end;
+  res.end = function(...args) {
+    const responseTime = Date.now() - startTime;
+
+    // Log request with performance metrics
+    logger.info(`${req.method} ${req.path} - ${req.ip}`, {
+      userAgent: req.get('User-Agent'),
+      timestamp: new Date().toISOString(),
+      responseTime: `${responseTime}ms`,
+      statusCode: res.statusCode,
+      contentLength: res.get('Content-Length') || 0
+    });
+
+    // Log slow requests
+    if (responseTime > 5000) {
+      logger.warn('Slow request detected', {
+        method: req.method,
+        path: req.path,
+        responseTime: `${responseTime}ms`,
+        ip: req.ip
+      });
+    }
+
+    originalEnd.apply(this, args);
+  };
+
   next();
 });
 
@@ -83,6 +175,8 @@ app.get('/health', async (req, res) => {
       timestamp: new Date().toISOString(),
       version: '2.0.0',
       environment: process.env.NODE_ENV,
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
       services: {
         monitoring: {
           status: monitoringStatus.isRunning ? 'active' : 'inactive',
@@ -101,12 +195,32 @@ app.get('/health', async (req, res) => {
       timestamp: new Date().toISOString(),
       version: '2.0.0',
       environment: process.env.NODE_ENV,
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
       services: {
         monitoring: { status: 'unknown' },
         analytics: { status: 'unknown' }
       }
     });
   }
+});
+
+// Readiness probe for Kubernetes/Docker
+app.get('/ready', (req, res) => {
+  res.json({
+    status: 'ready',
+    timestamp: new Date().toISOString(),
+    version: '2.0.0'
+  });
+});
+
+// Liveness probe for Kubernetes/Docker
+app.get('/live', (req, res) => {
+  res.json({
+    status: 'alive',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
 });
 
 // API routes
@@ -262,8 +376,43 @@ async function gracefulShutdown(signal) {
   }
 }
 
+// Process event handlers for production
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception', {
+    error: error.message,
+    stack: error.stack,
+    timestamp: new Date().toISOString()
+  });
+
+  // Attempt graceful shutdown
+  gracefulShutdown('UNCAUGHT_EXCEPTION');
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection', {
+    reason: reason,
+    promise: promise,
+    timestamp: new Date().toISOString()
+  });
+
+  // Attempt graceful shutdown
+  gracefulShutdown('UNHANDLED_REJECTION');
+});
+
+// Handle warnings
+process.on('warning', (warning) => {
+  logger.warn('Process Warning', {
+    name: warning.name,
+    message: warning.message,
+    stack: warning.stack,
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Initialize services
 async function initializeServices() {

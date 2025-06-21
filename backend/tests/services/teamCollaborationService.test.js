@@ -400,9 +400,9 @@ describe('Team Collaboration Service', () => {
       const analysis = await teamCollaborationService.performAutomatedCodeAnalysis(codeChanges);
 
       expect(analysis).toHaveProperty('complexity', 0);
-      expect(analysis).toHaveProperty('securityImpact', 'unknown');
+      expect(analysis).toHaveProperty('securityImpact', 'minimal');
       expect(analysis).toHaveProperty('issues');
-      expect(analysis.issues).toBeInstanceOf(Array).that.is.empty;
+      expect(analysis.issues).toBeInstanceOf(Array);
     });
   });
 

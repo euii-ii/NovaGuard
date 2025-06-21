@@ -1,11 +1,13 @@
-const { 
-  User, 
-  VulnerabilityPattern, 
-  AIAnalysisResult, 
-  Contract, 
-  VulnerabilityInstance, 
-  UserActivity 
+const {
+  User,
+  VulnerabilityPattern,
+  AIAnalysisResult,
+  Contract,
+  VulnerabilityInstance,
+  UserActivity,
+  mongoDBService
 } = require('../models');
+const { AuditResult, AnalyticsEvent, UserSession, MonitoringData } = require('../models/mongoModels');
 const logger = require('../utils/logger');
 const crypto = require('crypto');
 
@@ -16,6 +18,7 @@ const crypto = require('crypto');
 class DataPersistenceService {
   constructor() {
     this.enabled = !!process.env.DATABASE_URL;
+    this.mongoEnabled = process.env.USE_MONGODB === 'true';
   }
 
   /**
@@ -93,6 +96,15 @@ class DataPersistenceService {
       // Update contract analysis statistics
       if (contract) {
         await this.updateContractAnalysisStats(contract.id);
+      }
+
+      // Save to MongoDB for enhanced analytics and audit trail
+      if (this.mongoEnabled && mongoDBService.isMongoConnected()) {
+        try {
+          await this.saveAuditResultToMongo(analysisData, userId, analysisResult.analysisId);
+        } catch (mongoError) {
+          logger.warn('Failed to save audit result to MongoDB', { error: mongoError.message });
+        }
       }
 
       // Log user activity
@@ -355,6 +367,142 @@ class DataPersistenceService {
     } catch (error) {
       logger.error('Failed to get vulnerability stats', { error: error.message });
       return {};
+    }
+  }
+
+  /**
+   * Save audit result to MongoDB for enhanced analytics
+   * @param {Object} analysisData - Analysis result data
+   * @param {string} userId - User ID
+   * @param {string} analysisId - Analysis ID
+   */
+  async saveAuditResultToMongo(analysisData, userId, analysisId) {
+    if (!this.mongoEnabled || !mongoDBService.isMongoConnected()) {
+      return;
+    }
+
+    try {
+      const auditResult = new AuditResult({
+        auditId: analysisId,
+        contractAddress: analysisData.contractAddress,
+        chain: analysisData.chain,
+        chainId: this.getChainId(analysisData.chain),
+        contractInfo: {
+          name: analysisData.contractInfo?.name,
+          symbol: analysisData.contractInfo?.symbol,
+          compilerVersion: analysisData.contractInfo?.compilerVersion,
+          optimizationUsed: analysisData.contractInfo?.optimizationUsed,
+          sourceVerified: !!analysisData.contractCode,
+          deploymentBlock: analysisData.contractInfo?.deploymentBlock,
+          deploymentTimestamp: analysisData.contractInfo?.deploymentTimestamp,
+          creatorAddress: analysisData.contractInfo?.creatorAddress
+        },
+        analysisType: analysisData.analysisType || 'multi-agent',
+        agentsUsed: analysisData.metadata?.agentsUsed || [],
+        overallScore: this.validateScore(analysisData.overallScore),
+        riskLevel: this.validateRiskLevel(analysisData.riskLevel),
+        confidenceScore: this.validateConfidenceScore(analysisData.confidenceScore),
+        vulnerabilities: analysisData.vulnerabilities || [],
+        gasOptimizations: analysisData.gasOptimizations || [],
+        codeQuality: analysisData.codeQuality || {},
+        defiAnalysis: analysisData.defiAnalysis || {},
+        crossChainAnalysis: analysisData.crossChainAnalysis || {},
+        executionMetrics: {
+          totalExecutionTime: analysisData.metadata?.executionTime,
+          agentExecutionTimes: analysisData.metadata?.agentExecutionTimes || {},
+          memoryUsage: analysisData.metadata?.memoryUsage,
+          cpuUsage: analysisData.metadata?.cpuUsage,
+          apiCalls: analysisData.metadata?.apiCalls
+        },
+        metadata: {
+          analysisVersion: analysisData.metadata?.analysisVersion || '2.0.0',
+          modelVersions: analysisData.metadata?.modelVersions || {},
+          aggregationMethod: analysisData.metadata?.aggregationMethod,
+          userId,
+          userTier: analysisData.metadata?.userTier,
+          requestId: analysisData.metadata?.requestId,
+          ipAddress: analysisData.metadata?.ipAddress,
+          userAgent: analysisData.metadata?.userAgent
+        }
+      });
+
+      await auditResult.save();
+      logger.debug('Audit result saved to MongoDB', { auditId: analysisId });
+
+    } catch (error) {
+      logger.error('Failed to save audit result to MongoDB', {
+        error: error.message,
+        auditId: analysisId
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Save analytics event to MongoDB
+   * @param {Object} eventData - Event data
+   */
+  async saveAnalyticsEvent(eventData) {
+    if (!this.mongoEnabled || !mongoDBService.isMongoConnected()) {
+      return;
+    }
+
+    try {
+      const analyticsEvent = new AnalyticsEvent({
+        eventId: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        eventType: eventData.eventType,
+        userId: eventData.userId,
+        sessionId: eventData.sessionId,
+        contractAddress: eventData.contractAddress,
+        chain: eventData.chain,
+        eventData: eventData.data || {},
+        metrics: eventData.metrics || {},
+        userContext: eventData.userContext || {}
+      });
+
+      await analyticsEvent.save();
+      logger.debug('Analytics event saved to MongoDB', { eventType: eventData.eventType });
+
+    } catch (error) {
+      logger.error('Failed to save analytics event to MongoDB', {
+        error: error.message,
+        eventType: eventData.eventType
+      });
+    }
+  }
+
+  /**
+   * Save monitoring data to MongoDB
+   * @param {Object} monitoringData - Monitoring data
+   */
+  async saveMonitoringData(monitoringData) {
+    if (!this.mongoEnabled || !mongoDBService.isMongoConnected()) {
+      return;
+    }
+
+    try {
+      const monitoring = new MonitoringData({
+        contractAddress: monitoringData.contractAddress,
+        chain: monitoringData.chain,
+        blockNumber: monitoringData.blockNumber,
+        transactionHash: monitoringData.transactionHash,
+        eventType: monitoringData.eventType,
+        severity: monitoringData.severity || 'info',
+        data: monitoringData.data,
+        analysis: monitoringData.analysis || {}
+      });
+
+      await monitoring.save();
+      logger.debug('Monitoring data saved to MongoDB', {
+        contractAddress: monitoringData.contractAddress,
+        eventType: monitoringData.eventType
+      });
+
+    } catch (error) {
+      logger.error('Failed to save monitoring data to MongoDB', {
+        error: error.message,
+        contractAddress: monitoringData.contractAddress
+      });
     }
   }
 

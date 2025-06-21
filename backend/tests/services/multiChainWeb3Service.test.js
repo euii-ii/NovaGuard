@@ -72,7 +72,7 @@ describe('Multi-Chain Web3 Service', () => {
         expect(chain.chainId).toEqual(expect.any(Number));
         expect(chain.rpcUrl).toEqual(expect.any(String));
         expect(['evm', 'move', 'solana', 'layer2']).toContain(chain.type);
-        expect(['ethereum', 'aptos', 'solana', 'sui']).toContain(chain.ecosystem);
+        expect(['ethereum', 'aptos', 'solana', 'sui', 'binance']).toContain(chain.ecosystem);
       });
     });
   });

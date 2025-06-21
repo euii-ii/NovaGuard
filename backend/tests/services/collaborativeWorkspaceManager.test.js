@@ -680,9 +680,6 @@ describe('Collaborative Workspace Manager', () => {
         })),
         settings: {
           maxConcurrentUsers: 25
-        },
-        settings: {
-          maxConcurrentUsers: 25
         }
       });
 

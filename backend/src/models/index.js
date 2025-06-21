@@ -1,5 +1,6 @@
 const { Sequelize, DataTypes } = require('sequelize');
 const logger = require('../utils/logger');
+const mongoDBService = require('../database/mongodb');
 
 // Initialize Sequelize with SQLite
 const sequelize = new Sequelize({
@@ -344,14 +345,27 @@ Contract.addIndex = undefined; // Remove invalid reference
 // Database initialization
 async function initializeDatabase() {
   try {
+    // Initialize SQLite for structured data
     await sequelize.authenticate();
-    logger.info('Database connection established successfully');
-    
+    logger.info('SQLite database connection established successfully');
+
     if (process.env.NODE_ENV === 'development') {
       await sequelize.sync({ alter: true });
-      logger.info('Database synchronized');
+      logger.info('SQLite database synchronized');
     }
-    
+
+    // Initialize MongoDB for audit results and analytics
+    if (process.env.USE_MONGODB === 'true') {
+      const mongoInitialized = await mongoDBService.initialize();
+      if (mongoInitialized) {
+        logger.info('MongoDB connection established successfully');
+        // Create indexes for optimization
+        await mongoDBService.createIndexes();
+      } else {
+        logger.warn('MongoDB initialization failed, continuing with SQLite only');
+      }
+    }
+
     return true;
   } catch (error) {
     logger.error('Unable to connect to database', { error: error.message });
@@ -361,6 +375,7 @@ async function initializeDatabase() {
 
 module.exports = {
   sequelize,
+  mongoDBService,
   User,
   VulnerabilityPattern,
   AIAnalysisResult,

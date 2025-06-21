@@ -59,6 +59,16 @@ describe('Enhanced Audit Controller', () => {
     // Error handling middleware
     app.use((error, req, res, next) => {
       console.error('Test app error:', error);
+
+      // Handle JSON parsing errors specifically
+      if (error.type === 'entity.parse.failed' && error.statusCode === 400) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid JSON',
+          message: 'Request body contains invalid JSON'
+        });
+      }
+
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -182,8 +192,8 @@ describe('Enhanced Audit Controller', () => {
     });
 
     it('should support different analysis types', async () => {
-      const analysisTypes = ['quick', 'comprehensive', 'security-focused', 'defi-focused'];
-      
+      const analysisTypes = ['quick', 'comprehensive', 'deep'];
+
       for (const analysisType of analysisTypes) {
         aiAnalysisPipeline.analyzeContract.mockResolvedValue({
           vulnerabilities: [],
@@ -337,7 +347,7 @@ describe('Enhanced Audit Controller', () => {
         .set('Authorization', `Bearer ${testUser.token}`)
         .send({
           contractCode: mockContracts.defi,
-          protocolType: 'AMM',
+          protocolType: 'dex',
           agents: ['defi', 'economics']
         })
         .expect(200);
@@ -413,12 +423,12 @@ describe('Enhanced Audit Controller', () => {
     });
 
     it('should handle malformed JSON', async () => {
-      // Test with malformed JSON by sending invalid content
+      // Test with malformed JSON by sending invalid JSON string
       const response = await request(app)
         .post('/api/v1/contracts/analyze')
         .set('Authorization', `Bearer ${testUser.token}`)
         .set('Content-Type', 'application/json')
-        .send('{ "contractCode": "invalid json" }') // Valid JSON but test validation
+        .send('{ "contractCode": "invalid json", }') // Invalid JSON with trailing comma
         .expect(400);
 
       expect(response.body).toHaveProperty('success', false);

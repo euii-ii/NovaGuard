@@ -216,8 +216,8 @@ describe('AI Analysis Pipeline Service', () => {
       });
 
       expect(typeof result.overallScore).toBe('number');
-      expect(result.overallScore).toBeGreaterThanOrEqual(0);qual(0);
-      expect(result.overallScore).toBeLessThanOrEqual(100);(100);
+      expect(result.overallScore).toBeGreaterThanOrEqual(0);
+      expect(result.overallScore).toBeLessThanOrEqual(100);
     });
   });
 

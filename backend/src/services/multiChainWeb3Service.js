@@ -1603,3 +1603,8 @@ module.exports.initialize = multiChainWeb3ServiceInstance.initialize.bind(multiC
 module.exports.getStatus = multiChainWeb3ServiceInstance.getStatus.bind(multiChainWeb3ServiceInstance);
 module.exports.healthCheck = multiChainWeb3ServiceInstance.healthCheck.bind(multiChainWeb3ServiceInstance);
 module.exports.cleanup = multiChainWeb3ServiceInstance.cleanup.bind(multiChainWeb3ServiceInstance);
+module.exports.getSourceCodeFromExplorer = multiChainWeb3ServiceInstance.getSourceCodeFromExplorer.bind(multiChainWeb3ServiceInstance);
+module.exports.detectBridgePatterns = multiChainWeb3ServiceInstance.detectBridgePatterns.bind(multiChainWeb3ServiceInstance);
+
+// Export providers for testing
+module.exports.providers = multiChainWeb3ServiceInstance.providers;
