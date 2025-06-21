@@ -30,9 +30,14 @@ class DataPersistenceService {
       return null;
     }
 
+    // Validate required fields
+    if (!analysisData || typeof analysisData !== 'object') {
+      throw new Error('Invalid analysis data provided');
+    }
+
     try {
-      // Generate contract code hash
-      const contractCodeHash = analysisData.contractCode 
+      // Generate contract code hash with validation
+      const contractCodeHash = analysisData.contractCode && typeof analysisData.contractCode === 'string'
         ? crypto.createHash('sha256').update(analysisData.contractCode).digest('hex')
         : null;
 
@@ -46,30 +51,33 @@ class DataPersistenceService {
         });
       }
 
-      // Create analysis result record
+      // Validate and sanitize analysis data
+      const sanitizedData = this.sanitizeAnalysisData(analysisData);
+
+      // Create analysis result record with validation
       const analysisResult = await AIAnalysisResult.create({
-        analysisId: analysisData.analysisId || this.generateAnalysisId(),
+        analysisId: sanitizedData.analysisId || this.generateAnalysisId(),
         userId,
         contractId: contract?.id,
-        contractAddress: analysisData.contractAddress,
+        contractAddress: sanitizedData.contractAddress,
         contractCodeHash,
-        chainId: this.getChainId(analysisData.chain),
-        chainName: analysisData.chain,
-        analysisType: analysisData.analysisType || 'multi-agent',
-        agentsUsed: analysisData.metadata?.agentsUsed || [],
-        failedAgents: analysisData.metadata?.failedAgents || [],
-        overallScore: analysisData.overallScore,
-        riskLevel: analysisData.riskLevel,
-        confidenceScore: analysisData.confidenceScore,
-        vulnerabilitiesFound: analysisData.vulnerabilities?.length || 0,
-        vulnerabilities: analysisData.vulnerabilities || [],
-        recommendations: analysisData.recommendations || [],
-        gasOptimizations: analysisData.gasOptimizations || [],
-        codeQuality: analysisData.codeQuality || {},
-        executionTimeMs: analysisData.metadata?.executionTime,
-        analysisVersion: analysisData.metadata?.analysisVersion || '2.0.0',
-        modelVersions: analysisData.metadata?.modelVersions || {},
-        aggregationMethod: analysisData.metadata?.aggregationMethod,
+        chainId: this.getChainId(sanitizedData.chain),
+        chainName: sanitizedData.chain,
+        analysisType: sanitizedData.analysisType || 'multi-agent',
+        agentsUsed: Array.isArray(sanitizedData.metadata?.agentsUsed) ? sanitizedData.metadata.agentsUsed : [],
+        failedAgents: Array.isArray(sanitizedData.metadata?.failedAgents) ? sanitizedData.metadata.failedAgents : [],
+        overallScore: this.validateScore(sanitizedData.overallScore),
+        riskLevel: this.validateRiskLevel(sanitizedData.riskLevel),
+        confidenceScore: this.validateConfidenceScore(sanitizedData.confidenceScore),
+        vulnerabilitiesFound: Array.isArray(sanitizedData.vulnerabilities) ? sanitizedData.vulnerabilities.length : 0,
+        vulnerabilities: Array.isArray(sanitizedData.vulnerabilities) ? sanitizedData.vulnerabilities : [],
+        recommendations: Array.isArray(sanitizedData.recommendations) ? sanitizedData.recommendations : [],
+        gasOptimizations: Array.isArray(sanitizedData.gasOptimizations) ? sanitizedData.gasOptimizations : [],
+        codeQuality: typeof sanitizedData.codeQuality === 'object' ? sanitizedData.codeQuality : {},
+        executionTimeMs: this.validateExecutionTime(sanitizedData.metadata?.executionTime),
+        analysisVersion: sanitizedData.metadata?.analysisVersion || '2.0.0',
+        modelVersions: typeof sanitizedData.metadata?.modelVersions === 'object' ? sanitizedData.metadata.modelVersions : {},
+        aggregationMethod: sanitizedData.metadata?.aggregationMethod,
         completedAt: new Date()
       });
 
@@ -167,26 +175,34 @@ class DataPersistenceService {
    * @param {string} contractId - Contract ID
    */
   async saveVulnerabilityInstances(vulnerabilities, analysisResultId, contractId) {
+    if (!Array.isArray(vulnerabilities) || vulnerabilities.length === 0) {
+      logger.debug('No vulnerabilities to save');
+      return;
+    }
+
     try {
-      const instances = vulnerabilities.map(vuln => ({
-        analysisResultId,
-        contractId,
-        name: vuln.name,
-        description: vuln.description,
-        severity: vuln.severity,
-        category: vuln.category,
-        confidence: vuln.confidence || vuln.finalConfidence || 0.5,
-        affectedLines: vuln.affectedLines || [],
-        codeSnippet: vuln.codeSnippet,
-        functionName: vuln.functionName,
-        detectedBy: vuln.detectedBy || 'unknown',
-        detectionMethod: vuln.detectionMethod || 'ai',
-        impactDescription: vuln.impact,
-        exploitScenario: vuln.exploitScenario,
-        fixRecommendation: vuln.recommendation,
-        status: 'open',
-        verified: false
-      }));
+      const instances = vulnerabilities
+        .filter(vuln => vuln && typeof vuln === 'object')
+        .map(vuln => this.sanitizeVulnerabilityInstance({
+          analysisResultId,
+          contractId,
+          name: vuln.name,
+          description: vuln.description,
+          severity: vuln.severity,
+          category: vuln.category,
+          confidence: vuln.confidence || vuln.finalConfidence || 0.5,
+          affectedLines: vuln.affectedLines || [],
+          codeSnippet: vuln.codeSnippet,
+          functionName: vuln.functionName,
+          detectedBy: vuln.detectedBy || 'unknown',
+          detectionMethod: vuln.detectionMethod || 'ai',
+          impactDescription: vuln.impact,
+          exploitScenario: vuln.exploitScenario,
+          fixRecommendation: vuln.recommendation,
+          status: 'open',
+          verified: false
+        }))
+        .filter(instance => instance !== null); // Remove invalid instances
 
       await VulnerabilityInstance.bulkCreate(instances);
 
@@ -347,6 +363,131 @@ class DataPersistenceService {
    */
   generateAnalysisId() {
     return `analysis_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
+   * Sanitize analysis data to prevent injection and ensure data integrity
+   * @param {Object} analysisData - Raw analysis data
+   * @returns {Object} Sanitized analysis data
+   */
+  sanitizeAnalysisData(analysisData) {
+    const sanitized = { ...analysisData };
+
+    // Sanitize string fields
+    if (typeof sanitized.contractAddress === 'string') {
+      sanitized.contractAddress = sanitized.contractAddress.trim().toLowerCase();
+      // Validate Ethereum address format
+      if (!/^0x[a-fA-F0-9]{40}$/.test(sanitized.contractAddress)) {
+        sanitized.contractAddress = null;
+      }
+    }
+
+    if (typeof sanitized.chain === 'string') {
+      sanitized.chain = sanitized.chain.trim().toLowerCase();
+    }
+
+    if (typeof sanitized.analysisType === 'string') {
+      sanitized.analysisType = sanitized.analysisType.trim();
+    }
+
+    return sanitized;
+  }
+
+  /**
+   * Validate overall score
+   * @param {number} score - Score to validate
+   * @returns {number} Valid score between 0-100
+   */
+  validateScore(score) {
+    if (typeof score !== 'number' || isNaN(score)) {
+      return 50; // Default score
+    }
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
+
+  /**
+   * Validate risk level
+   * @param {string} riskLevel - Risk level to validate
+   * @returns {string} Valid risk level
+   */
+  validateRiskLevel(riskLevel) {
+    const validLevels = ['Low', 'Medium', 'High', 'Critical'];
+    return validLevels.includes(riskLevel) ? riskLevel : 'Medium';
+  }
+
+  /**
+   * Validate confidence score
+   * @param {number} confidence - Confidence score to validate
+   * @returns {number} Valid confidence between 0-1
+   */
+  validateConfidenceScore(confidence) {
+    if (typeof confidence !== 'number' || isNaN(confidence)) {
+      return 0.5; // Default confidence
+    }
+    return Math.max(0, Math.min(1, confidence));
+  }
+
+  /**
+   * Validate execution time
+   * @param {number} executionTime - Execution time in milliseconds
+   * @returns {number} Valid execution time
+   */
+  validateExecutionTime(executionTime) {
+    if (typeof executionTime !== 'number' || isNaN(executionTime) || executionTime < 0) {
+      return null;
+    }
+    return Math.round(executionTime);
+  }
+
+  /**
+   * Sanitize vulnerability instance data
+   * @param {Object} instance - Raw vulnerability instance
+   * @returns {Object|null} Sanitized instance or null if invalid
+   */
+  sanitizeVulnerabilityInstance(instance) {
+    // Validate required fields
+    if (!instance.name || !instance.description || !instance.severity) {
+      logger.warn('Invalid vulnerability instance: missing required fields', {
+        name: instance.name,
+        description: !!instance.description,
+        severity: instance.severity
+      });
+      return null;
+    }
+
+    // Validate severity
+    const validSeverities = ['Low', 'Medium', 'High', 'Critical'];
+    if (!validSeverities.includes(instance.severity)) {
+      logger.warn('Invalid severity level', { severity: instance.severity });
+      instance.severity = 'Medium';
+    }
+
+    // Validate confidence
+    instance.confidence = this.validateConfidenceScore(instance.confidence);
+
+    // Sanitize arrays
+    if (!Array.isArray(instance.affectedLines)) {
+      instance.affectedLines = [];
+    }
+
+    // Sanitize strings
+    if (typeof instance.name === 'string') {
+      instance.name = instance.name.trim().substring(0, 255);
+    }
+
+    if (typeof instance.description === 'string') {
+      instance.description = instance.description.trim();
+    }
+
+    if (typeof instance.category === 'string') {
+      instance.category = instance.category.trim().substring(0, 100);
+    }
+
+    if (typeof instance.detectedBy === 'string') {
+      instance.detectedBy = instance.detectedBy.trim().substring(0, 50);
+    }
+
+    return instance;
   }
 
   getChainId(chainName) {

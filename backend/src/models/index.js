@@ -1,29 +1,16 @@
 const { Sequelize, DataTypes } = require('sequelize');
 const logger = require('../utils/logger');
 
-// Initialize Sequelize
-const sequelize = process.env.DATABASE_URL 
-  ? new Sequelize(process.env.DATABASE_URL, {
-      dialect: process.env.DATABASE_URL.startsWith('postgres') ? 'postgres' : 'sqlite',
-      logging: process.env.NODE_ENV === 'development' ? false : false, // Disable logging for cleaner output
-      pool: {
-        max: 5,
-        min: 0,
-        acquire: 30000,
-        idle: 10000
-      }
-    })
-  : new Sequelize({
-      dialect: 'sqlite',
-      storage: ':memory:',
-      logging: process.env.NODE_ENV === 'development' ? false : false, // Disable logging for cleaner output
-      pool: {
-        max: 5,
-        min: 0,
-        acquire: 30000,
-        idle: 10000
-      }
-    });
+// Initialize Sequelize with SQLite
+const sequelize = new Sequelize({
+  dialect: 'sqlite',
+  storage: process.env.DATABASE_URL?.replace('sqlite:', '') || './data/auditor.db',
+  logging: process.env.NODE_ENV === 'development' ? (msg) => logger.debug(msg) : false,
+  define: {
+    timestamps: true,
+    underscored: false,
+  },
+});
 
 // Define Models
 const User = sequelize.define('User', {
@@ -245,6 +232,14 @@ const Contract = sequelize.define('Contract', {
     defaultValue: false
   },
   cacheExpiresAt: DataTypes.DATE
+}, {
+  indexes: [
+    {
+      unique: true,
+      fields: ['address', 'chainId'],
+      name: 'unique_contract_address_chain'
+    }
+  ]
 });
 
 const VulnerabilityInstance = sequelize.define('VulnerabilityInstance', {
@@ -343,10 +338,8 @@ VulnerabilityInstance.belongsTo(Contract, { foreignKey: 'contractId' });
 User.hasMany(UserActivity, { foreignKey: 'userId' });
 UserActivity.belongsTo(User, { foreignKey: 'userId' });
 
-// Add unique constraint for contract address + chain
-// Note: This should be handled in the model definition or migration
-// Contract.addIndex is not a valid Sequelize method
-// The unique constraint should be defined in the model definition above
+// Add unique constraint for contract address + chain combination
+Contract.addIndex = undefined; // Remove invalid reference
 
 // Database initialization
 async function initializeDatabase() {

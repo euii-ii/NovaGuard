@@ -5,6 +5,7 @@ class ContractParser {
   constructor() {
     this.vulnerabilityPatterns = {
       reentrancy: [
+        /\.call\s*\{/,
         /\.call\s*\(/,
         /\.send\s*\(/,
         /\.transfer\s*\(/,
@@ -24,7 +25,7 @@ class ContractParser {
         /modifier/,
         /public\s+function/,
       ],
-      uncheckedCalls: [
+      'unchecked-call': [
         /\.call\s*\(/,
         /\.delegatecall\s*\(/,
         /\.staticcall\s*\(/,
@@ -34,8 +35,14 @@ class ContractParser {
         /now/,
         /block\.number/,
       ],
-      txOrigin: [
+      'tx-origin': [
         /tx\.origin/,
+      ],
+      delegatecall: [
+        /\.delegatecall\s*\(/,
+      ],
+      selfdestruct: [
+        /selfdestruct\s*\(/,
       ],
     };
   }
@@ -50,8 +57,12 @@ class ContractParser {
       logger.info('Starting contract parsing');
       
       // Basic validation
-      if (!contractCode || typeof contractCode !== 'string') {
-        throw new Error('Invalid contract code provided');
+      if (!contractCode) {
+        throw new Error('Contract code cannot be empty');
+      }
+      
+      if (typeof contractCode !== 'string') {
+        throw new Error('Contract code must be a string');
       }
 
       // Parse the contract using solidity-parser-antlr
@@ -68,7 +79,13 @@ class ContractParser {
       
       // Combine results
       const result = {
-        ...contractInfo,
+        contracts: contractInfo.contracts,
+        functions: contractInfo.functions,
+        modifiers: contractInfo.modifiers,
+        events: contractInfo.events,
+        imports: contractInfo.imports,
+        stateVariables: contractInfo.stateVariables,
+        codeMetrics: contractInfo.codeMetrics,
         staticAnalysis,
         rawCode: contractCode,
         parseTimestamp: new Date().toISOString(),
@@ -79,7 +96,7 @@ class ContractParser {
 
     } catch (error) {
       logger.error('Contract parsing failed', { error: error.message });
-      throw new Error(`Contract parsing failed: ${error.message}`);
+      throw new Error(`Failed to parse contract: ${error.message}`);
     }
   }
 
@@ -95,64 +112,86 @@ class ContractParser {
     const modifiers = [];
     const events = [];
     const imports = [];
+    const stateVariables = [];
 
-    Parser.visit(ast, {
-      ContractDefinition: (node) => {
-        contracts.push({
-          name: node.name,
-          type: node.kind, // contract, interface, library
-          inheritance: node.baseContracts?.map(base => base.baseName.namePath) || [],
-          location: node.loc,
-        });
-      },
-      
-      FunctionDefinition: (node) => {
-        functions.push({
-          name: node.name || 'constructor',
-          visibility: node.visibility,
-          stateMutability: node.stateMutability,
-          modifiers: node.modifiers?.map(mod => mod.name) || [],
-          parameters: node.parameters?.parameters?.map(param => ({
-            name: param.name,
-            type: param.typeName?.type,
-          })) || [],
-          location: node.loc,
-          isPayable: node.stateMutability === 'payable',
-          isExternal: node.visibility === 'external',
-        });
-      },
+    try {
+      Parser.visit(ast, {
+        ContractDefinition: (node) => {
+          contracts.push({
+            name: node.name,
+            type: node.kind, // contract, interface, library
+            inheritance: node.baseContracts?.map(base => base.baseName.namePath) || [],
+            location: node.loc,
+          });
+        },
+        
+        FunctionDefinition: (node) => {
+          functions.push({
+            name: node.name || 'constructor',
+            visibility: node.visibility,
+            stateMutability: node.stateMutability,
+            modifiers: node.modifiers?.map(mod => mod.name) || [],
+            parameters: node.parameters?.parameters?.map(param => ({
+              name: param.name,
+              type: param.typeName?.type,
+            })) || [],
+            returnParameters: node.returnParameters?.parameters?.map(param => ({
+              name: param.name,
+              type: param.typeName?.type,
+            })) || [],
+            location: node.loc,
+            isPayable: node.stateMutability === 'payable',
+            isExternal: node.visibility === 'external',
+          });
+        },
 
-      ModifierDefinition: (node) => {
-        modifiers.push({
-          name: node.name,
-          parameters: node.parameters?.parameters?.map(param => ({
-            name: param.name,
-            type: param.typeName?.type,
-          })) || [],
-          location: node.loc,
-        });
-      },
+        ModifierDefinition: (node) => {
+          modifiers.push({
+            name: node.name,
+            parameters: node.parameters?.parameters?.map(param => ({
+              name: param.name,
+              type: param.typeName?.type,
+            })) || [],
+            location: node.loc,
+          });
+        },
 
-      EventDefinition: (node) => {
-        events.push({
-          name: node.name,
-          parameters: node.parameters?.parameters?.map(param => ({
-            name: param.name,
-            type: param.typeName?.type,
-            indexed: param.indexed,
-          })) || [],
-          location: node.loc,
-        });
-      },
+        EventDefinition: (node) => {
+          events.push({
+            name: node.name,
+            parameters: node.parameters?.parameters?.map(param => ({
+              name: param.name,
+              type: param.typeName?.type,
+              indexed: param.indexed,
+            })) || [],
+            location: node.loc,
+          });
+        },
 
-      ImportDirective: (node) => {
-        imports.push({
-          path: node.path,
-          symbols: node.symbolAliases?.map(alias => alias.foreign) || [],
-          location: node.loc,
-        });
-      },
-    });
+        ImportDirective: (node) => {
+          imports.push({
+            path: node.path,
+            symbols: node.symbolAliases?.map(alias => alias.foreign) || [],
+            location: node.loc,
+          });
+        },
+
+        StateVariableDeclaration: (node) => {
+          if (node.variables) {
+            node.variables.forEach(variable => {
+              stateVariables.push({
+                name: variable.name,
+                type: variable.typeName?.type,
+                visibility: variable.visibility,
+                location: node.loc,
+              });
+            });
+          }
+        },
+      });
+    } catch (error) {
+      logger.warn('AST parsing encountered issues', { error: error.message });
+    }
 
     return {
       contracts,
@@ -160,6 +199,7 @@ class ContractParser {
       modifiers,
       events,
       imports,
+      stateVariables,
       codeMetrics: this.calculateCodeMetrics(contractCode),
     };
   }
@@ -207,12 +247,20 @@ class ContractParser {
     const nonEmptyLines = lines.filter(line => line.trim().length > 0);
     const commentLines = lines.filter(line => line.trim().startsWith('//') || line.trim().startsWith('/*'));
 
+    // Count functions, modifiers, and events
+    const functionCount = (contractCode.match(/function\s+\w+/g) || []).length;
+    const modifierCount = (contractCode.match(/modifier\s+\w+/g) || []).length;
+    const eventCount = (contractCode.match(/event\s+\w+/g) || []).length;
+
     return {
       totalLines: lines.length,
       codeLines: nonEmptyLines.length,
       commentLines: commentLines.length,
       complexity: this.calculateComplexity(contractCode),
       size: contractCode.length,
+      functionCount,
+      modifierCount,
+      eventCount,
     };
   }
 
@@ -253,9 +301,11 @@ class ContractParser {
       reentrancy: 'High',
       integerOverflow: 'Medium',
       accessControl: 'High',
-      uncheckedCalls: 'Medium',
+      'unchecked-call': 'Medium',
       timestampDependence: 'Low',
-      txOrigin: 'High',
+      'tx-origin': 'High',
+      delegatecall: 'Medium',
+      selfdestruct: 'High',
     };
 
     return severityMap[category] || 'Low';
@@ -295,4 +345,47 @@ class ContractParser {
   }
 }
 
-module.exports = new ContractParser();
+const contractParserInstance = new ContractParser();
+
+// Export the service instance
+module.exports = contractParserInstance;
+
+// Export the class for testing
+module.exports.ContractParser = ContractParser;
+
+// Export individual methods for direct access
+module.exports.parseContract = contractParserInstance.parseContract.bind(contractParserInstance);
+module.exports.validateSyntax = contractParserInstance.validateSyntax.bind(contractParserInstance);
+module.exports.performStaticAnalysis = contractParserInstance.performStaticAnalysis.bind(contractParserInstance);
+module.exports.calculateCodeMetrics = contractParserInstance.calculateCodeMetrics.bind(contractParserInstance);
+
+// Export initialization method
+module.exports.initialize = async function(options = {}) {
+  try {
+    // Initialize contract parser with configuration
+    if (options.vulnerabilityPatterns) {
+      contractParserInstance.vulnerabilityPatterns = {
+        ...contractParserInstance.vulnerabilityPatterns,
+        ...options.vulnerabilityPatterns
+      };
+    }
+    
+    logger.info('ContractParser initialized successfully', {
+      vulnerabilityPatterns: Object.keys(contractParserInstance.vulnerabilityPatterns).length
+    });
+    
+    return true;
+  } catch (error) {
+    logger.error('Failed to initialize ContractParser', { error: error.message });
+    throw error;
+  }
+};
+
+// Export service status method
+module.exports.getStatus = function() {
+  return {
+    initialized: true,
+    vulnerabilityPatterns: Object.keys(contractParserInstance.vulnerabilityPatterns).length,
+    supportedFeatures: ['parsing', 'static-analysis', 'syntax-validation', 'code-metrics']
+  };
+};

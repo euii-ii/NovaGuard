@@ -19,9 +19,11 @@ describe('Team Collaboration Service', () => {
     aiAnalysisStub = sinon.stub(aiAnalysisPipeline, 'analyzeContract');
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     sinon.restore();
-    teamCollaborationService.cleanup();
+    if (typeof teamCollaborationService.cleanup === 'function') {
+      await teamCollaborationService.cleanup();
+    }
   });
 
   describe('Service Initialization', () => {

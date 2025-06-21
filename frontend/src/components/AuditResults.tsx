@@ -1,5 +1,5 @@
 import React from 'react';
-import { AuditResult, Vulnerability } from '../services/api';
+import type { AuditResult, Vulnerability } from '../services/api';
 import './AuditResults.css';
 
 interface AuditResultsProps {

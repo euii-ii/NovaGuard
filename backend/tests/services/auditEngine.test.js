@@ -81,7 +81,8 @@ describe('AuditEngine Service', () => {
       process.env.VULNERABILITY_THRESHOLD_MEDIUM = '60';
       
       // Create a new instance to test environment variables
-      const engine = new AuditEngine.AuditEngine();
+      const AuditEngineClass = require('../../src/services/auditEngine').AuditEngine;
+      const engine = new AuditEngineClass();
       expect(engine.maxContractSize).toBe(2097152);
       expect(engine.vulnerabilityThresholds.high).toBe(85);
       expect(engine.vulnerabilityThresholds.medium).toBe(60);

@@ -105,6 +105,23 @@ class AIAnalysisPipeline {
   }
 
   /**
+   * Get available AI agents
+   * @returns {Array} List of available agents with metadata
+   */
+  getAvailableAgents() {
+    return [
+      { id: 'security', name: 'Security Analyzer', description: 'Detects security vulnerabilities and attack vectors' },
+      { id: 'quality', name: 'Quality Analyzer', description: 'Analyzes code quality and best practices' },
+      { id: 'defi', name: 'DeFi Analyzer', description: 'Specialized in DeFi protocol analysis and risks' },
+      { id: 'economics', name: 'Economics Analyzer', description: 'Analyzes tokenomics and economic models' },
+      { id: 'crossChain', name: 'Cross-Chain Analyzer', description: 'Analyzes cross-chain bridge security' },
+      { id: 'mev', name: 'MEV Analyzer', description: 'Detects MEV vulnerabilities and front-running risks' },
+      { id: 'gasOptimization', name: 'Gas Optimizer', description: 'Identifies gas optimization opportunities' },
+      { id: 'governance', name: 'Governance Analyzer', description: 'Analyzes governance mechanisms and risks' }
+    ];
+  }
+
+  /**
    * Analyze contract using multi-agent AI system
    * @param {Object} request - Analysis request
    * @returns {Object} Comprehensive analysis results
@@ -112,6 +129,19 @@ class AIAnalysisPipeline {
   async analyzeContract(request) {
     const startTime = Date.now();
     const analysisId = this.generateAnalysisId();
+
+    // Validate input request
+    if (!request || typeof request !== 'object') {
+      throw new Error('Invalid analysis request: request must be an object');
+    }
+
+    if (!request.contractCode || typeof request.contractCode !== 'string') {
+      throw new Error('Invalid analysis request: contractCode is required and must be a string');
+    }
+
+    if (request.contractCode.length > 1000000) { // 1MB limit
+      throw new Error('Contract code too large: maximum size is 1MB');
+    }
 
     try {
       logger.info('Starting AI pipeline analysis', {
@@ -682,29 +712,39 @@ ${baseInfo}`
 
       // Handle both string and object responses
       if (typeof response === 'string') {
-        parsed = JSON.parse(response);
+        // Try to extract JSON from response if it contains other text
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
+        const jsonString = jsonMatch ? jsonMatch[0] : response;
+        parsed = JSON.parse(jsonString);
       } else if (typeof response === 'object' && response !== null) {
         parsed = response;
       } else {
         throw new Error('Invalid response format');
       }
 
-      // Ensure required fields exist
+      // Validate and sanitize the parsed response
+      const sanitized = this.sanitizeAgentResponse(parsed, agentType);
+
+      // Ensure required fields exist with proper validation
       return {
-        vulnerabilities: parsed.vulnerabilities || [],
-        overallScore: parsed.overallScore || 50,
-        riskLevel: parsed.riskLevel || 'Medium',
-        summary: parsed.summary || 'Analysis completed',
-        recommendations: parsed.recommendations || [],
-        gasOptimizations: parsed.gasOptimizations || [],
-        codeQuality: parsed.codeQuality || { score: 50, issues: [], strengths: [] },
-        issues: parsed.issues || [], // For quality analysis
-        risks: parsed.risks || [], // For DeFi analysis
-        defiRisk: parsed.defiRisk || 'Low', // For DeFi analysis
+        vulnerabilities: this.validateVulnerabilities(sanitized.vulnerabilities || []),
+        overallScore: this.validateScore(sanitized.overallScore, 50),
+        riskLevel: this.validateRiskLevel(sanitized.riskLevel, 'Medium'),
+        summary: this.validateString(sanitized.summary, 'Analysis completed'),
+        recommendations: this.validateStringArray(sanitized.recommendations || []),
+        gasOptimizations: this.validateGasOptimizations(sanitized.gasOptimizations || []),
+        codeQuality: this.validateCodeQuality(sanitized.codeQuality),
+        issues: this.validateStringArray(sanitized.issues || []), // For quality analysis
+        risks: this.validateStringArray(sanitized.risks || []), // For DeFi analysis
+        defiRisk: this.validateRiskLevel(sanitized.defiRisk, 'Low'), // For DeFi analysis
         agentType
       };
     } catch (error) {
-      logger.warn(`Failed to parse ${agentType} agent response`, { error: error.message });
+      logger.warn(`Failed to parse ${agentType} agent response`, {
+        error: error.message,
+        responseType: typeof response,
+        responseLength: typeof response === 'string' ? response.length : 'N/A'
+      });
 
       // Return a default structure if parsing fails
       return this.createDefaultAnalysis(agentType);
@@ -795,6 +835,164 @@ ${baseInfo}`
           risks: []
         };
     }
+  }
+
+  /**
+   * Sanitize agent response to prevent injection and ensure data integrity
+   * @param {Object} response - Raw agent response
+   * @param {string} agentType - Type of agent
+   * @returns {Object} Sanitized response
+   */
+  sanitizeAgentResponse(response, agentType) {
+    if (!response || typeof response !== 'object') {
+      return {};
+    }
+
+    const sanitized = { ...response };
+
+    // Sanitize string fields
+    if (typeof sanitized.summary === 'string') {
+      sanitized.summary = sanitized.summary.trim().substring(0, 1000);
+    }
+
+    if (typeof sanitized.riskLevel === 'string') {
+      sanitized.riskLevel = sanitized.riskLevel.trim();
+    }
+
+    return sanitized;
+  }
+
+  /**
+   * Validate vulnerabilities array
+   * @param {Array} vulnerabilities - Vulnerabilities to validate
+   * @returns {Array} Valid vulnerabilities
+   */
+  validateVulnerabilities(vulnerabilities) {
+    if (!Array.isArray(vulnerabilities)) {
+      return [];
+    }
+
+    return vulnerabilities
+      .filter(vuln => vuln && typeof vuln === 'object')
+      .map(vuln => ({
+        name: this.validateString(vuln.name, 'Unknown Vulnerability'),
+        description: this.validateString(vuln.description, 'No description provided'),
+        severity: this.validateRiskLevel(vuln.severity, 'Medium'),
+        category: this.validateString(vuln.category, 'other'),
+        affectedLines: Array.isArray(vuln.affectedLines) ? vuln.affectedLines.filter(line => typeof line === 'number') : [],
+        codeSnippet: this.validateString(vuln.codeSnippet, ''),
+        recommendation: this.validateString(vuln.recommendation, 'Manual review recommended'),
+        impact: this.validateString(vuln.impact, 'Impact assessment needed'),
+        confidence: this.validateConfidence(vuln.confidence, 'Medium')
+      }));
+  }
+
+  /**
+   * Validate score value
+   * @param {number} score - Score to validate
+   * @param {number} defaultValue - Default value if invalid
+   * @returns {number} Valid score
+   */
+  validateScore(score, defaultValue = 50) {
+    if (typeof score !== 'number' || isNaN(score)) {
+      return defaultValue;
+    }
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
+
+  /**
+   * Validate risk level
+   * @param {string} riskLevel - Risk level to validate
+   * @param {string} defaultValue - Default value if invalid
+   * @returns {string} Valid risk level
+   */
+  validateRiskLevel(riskLevel, defaultValue = 'Medium') {
+    const validLevels = ['Low', 'Medium', 'High', 'Critical'];
+    return validLevels.includes(riskLevel) ? riskLevel : defaultValue;
+  }
+
+  /**
+   * Validate string value
+   * @param {string} value - String to validate
+   * @param {string} defaultValue - Default value if invalid
+   * @returns {string} Valid string
+   */
+  validateString(value, defaultValue = '') {
+    if (typeof value !== 'string') {
+      return defaultValue;
+    }
+    return value.trim().substring(0, 2000); // Limit length
+  }
+
+  /**
+   * Validate string array
+   * @param {Array} array - Array to validate
+   * @returns {Array} Valid string array
+   */
+  validateStringArray(array) {
+    if (!Array.isArray(array)) {
+      return [];
+    }
+    return array
+      .filter(item => typeof item === 'string')
+      .map(item => item.trim().substring(0, 500))
+      .filter(item => item.length > 0);
+  }
+
+  /**
+   * Validate gas optimizations array
+   * @param {Array} optimizations - Gas optimizations to validate
+   * @returns {Array} Valid gas optimizations
+   */
+  validateGasOptimizations(optimizations) {
+    if (!Array.isArray(optimizations)) {
+      return [];
+    }
+
+    return optimizations
+      .filter(opt => opt && typeof opt === 'object')
+      .map(opt => ({
+        description: this.validateString(opt.description, 'Gas optimization suggestion'),
+        affectedLines: Array.isArray(opt.affectedLines) ? opt.affectedLines.filter(line => typeof line === 'number') : [],
+        potentialSavings: this.validateString(opt.potentialSavings, 'Unknown savings'),
+        implementation: this.validateString(opt.implementation, 'Implementation details needed')
+      }));
+  }
+
+  /**
+   * Validate code quality object
+   * @param {Object} codeQuality - Code quality to validate
+   * @returns {Object} Valid code quality
+   */
+  validateCodeQuality(codeQuality) {
+    if (!codeQuality || typeof codeQuality !== 'object') {
+      return { score: 50, issues: [], strengths: [] };
+    }
+
+    return {
+      score: this.validateScore(codeQuality.score, 50),
+      issues: this.validateStringArray(codeQuality.issues || []),
+      strengths: this.validateStringArray(codeQuality.strengths || [])
+    };
+  }
+
+  /**
+   * Validate confidence value
+   * @param {string|number} confidence - Confidence to validate
+   * @param {string} defaultValue - Default value if invalid
+   * @returns {string} Valid confidence
+   */
+  validateConfidence(confidence, defaultValue = 'Medium') {
+    const validConfidences = ['Low', 'Medium', 'High'];
+    if (validConfidences.includes(confidence)) {
+      return confidence;
+    }
+    if (typeof confidence === 'number') {
+      if (confidence >= 0.8) return 'High';
+      if (confidence >= 0.5) return 'Medium';
+      return 'Low';
+    }
+    return defaultValue;
   }
 }
 

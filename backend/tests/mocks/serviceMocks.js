@@ -80,9 +80,9 @@ const mockMultiChainWeb3Service = {
   }),
   
   getSupportedChains: jest.fn().mockReturnValue({
-    ethereum: { name: 'Ethereum', chainId: 1 },
-    polygon: { name: 'Polygon', chainId: 137 },
-    arbitrum: { name: 'Arbitrum', chainId: 42161 }
+    ethereum: { name: 'Ethereum', chainId: 1, type: 'evm', ecosystem: 'ethereum' },
+    polygon: { name: 'Polygon', chainId: 137, type: 'evm', ecosystem: 'ethereum' },
+    arbitrum: { name: 'Arbitrum', chainId: 42161, type: 'layer2', ecosystem: 'ethereum' }
   }),
   
   getContract: jest.fn().mockResolvedValue({
@@ -90,7 +90,57 @@ const mockMultiChainWeb3Service = {
     name: 'MockContract',
     abi: [],
     bytecode: '0x608060405234801561001057600080fd5b50...'
-  })
+  }),
+
+  getContractFromAddress: jest.fn().mockResolvedValue({
+    address: '0x1234567890123456789012345678901234567890',
+    chain: 'ethereum',
+    chainId: 1,
+    chainType: 'evm',
+    ecosystem: 'ethereum',
+    bytecode: '0x608060405234801561001057600080fd5b50',
+    balance: '0.0',
+    sourceCode: {
+      sourceCode: 'contract MockContract { }',
+      contractName: 'MockContract',
+      compilerVersion: '0.8.19'
+    },
+    crossChainAnalysis: {
+      deployedChains: [],
+      potentialBridge: false,
+      crossChainRisks: [],
+      ecosystems: ['ethereum']
+    },
+    transactionCount: 100,
+    recentActivity: {
+      transactions: [],
+      lastActivity: new Date().toISOString()
+    },
+    fetchedAt: new Date().toISOString()
+  }),
+
+  monitorEvents: jest.fn().mockResolvedValue([
+    {
+      address: '0x1234567890123456789012345678901234567890',
+      topics: ['0x' + 'a'.repeat(64)],
+      data: '0x' + 'b'.repeat(128),
+      blockNumber: 18500000,
+      transactionHash: '0x' + 'c'.repeat(64)
+    }
+  ]),
+
+  providers: {
+    ethereum: {
+      getTransaction: jest.fn().mockResolvedValue({
+        hash: '0x' + 'c'.repeat(64),
+        to: '0x1234567890123456789012345678901234567890',
+        from: '0x' + 'd'.repeat(40),
+        value: '1000000000000000000',
+        gasLimit: '21000',
+        gasPrice: '20000000000'
+      })
+    }
+  }
 };
 
 /**
@@ -197,6 +247,13 @@ const mockTeamCollaborationService = {
  * Mock ChainIDE Integration Service
  */
 const mockChainIDEIntegrationService = {
+  activeConnections: new Map(),
+  workspaces: new Map(),
+  pluginRegistry: new Map(),
+  realtimeAnalysisQueue: new Map(),
+  
+  initialize: jest.fn().mockResolvedValue(undefined),
+  
   createWorkspace: jest.fn().mockResolvedValue({
     workspaceId: 'workspace-123',
     name: 'Test Workspace',
@@ -212,6 +269,165 @@ const mockChainIDEIntegrationService = {
       quickFeedback: []
     },
     metadata: { processingTime: 150 }
+  }),
+
+  handleMessage: jest.fn().mockImplementation(async (connectionId, data) => {
+    try {
+      const message = JSON.parse(data.toString());
+      const connection = mockChainIDEIntegrationService.activeConnections.get(connectionId);
+      
+      if (!connection) {
+        return;
+      }
+
+      switch (message.type) {
+        case 'workspace:join':
+          if (!connection.userId) {
+            if (connection.ws && connection.ws.send) {
+              connection.ws.send(JSON.stringify({
+                type: 'error',
+                error: 'Authentication required',
+                id: message.id
+              }));
+            }
+            return;
+          }
+          
+          const workspace = {
+            id: message.workspaceId,
+            projectName: message.projectName,
+            members: new Map(),
+            contractFiles: new Map(),
+            collaborativeState: {
+              cursors: new Map()
+            }
+          };
+          
+          workspace.members.set(connection.userId, {
+            connectionId,
+            userId: connection.userId,
+            role: 'owner'
+          });
+          
+          if (message.contractFiles) {
+            message.contractFiles.forEach(file => {
+              workspace.contractFiles.set(file.path, file);
+            });
+          }
+          
+          mockChainIDEIntegrationService.workspaces.set(message.workspaceId, workspace);
+          break;
+
+        case 'analysis:realtime':
+          // Add to queue
+          const analysisId = `analysis_${Date.now()}`;
+          mockChainIDEIntegrationService.realtimeAnalysisQueue.set(analysisId, {
+            connectionId,
+            contractCode: message.contractCode,
+            filePath: message.filePath
+          });
+          break;
+
+        case 'plugin:register':
+          mockChainIDEIntegrationService.pluginRegistry.set(message.pluginId, {
+            id: message.pluginId,
+            name: message.pluginName,
+            version: message.version
+          });
+          break;
+
+        case 'collaboration:cursor':
+          const ws = mockChainIDEIntegrationService.workspaces.get(connection.workspaceId);
+          if (ws && ws.collaborativeState) {
+            ws.collaborativeState.cursors.set(connection.userId, {
+              userId: connection.userId,
+              filePath: message.filePath,
+              position: message.position
+            });
+          } else {
+            // Send error for invalid workspace
+            if (connection.ws && connection.ws.send) {
+              connection.ws.send(JSON.stringify({
+                type: 'error',
+                error: 'Workspace not found',
+                id: message.id
+              }));
+            }
+          }
+          break;
+
+        case 'collaboration:edit':
+          const editWs = mockChainIDEIntegrationService.workspaces.get(connection.workspaceId);
+          if (editWs && editWs.contractFiles) {
+            editWs.contractFiles.set(message.filePath, {
+              path: message.filePath,
+              content: message.content
+            });
+          }
+          break;
+      }
+    } catch (error) {
+      // Mock error handling
+    }
+  }),
+
+  getServiceCapabilities: jest.fn().mockReturnValue({
+    realtimeAnalysis: true,
+    multiAgentSupport: true,
+    collaborativeEditing: true,
+    workspaceManagement: true,
+    pluginSupport: true,
+    supportedChains: ['ethereum', 'polygon', 'arbitrum'],
+    supportedAgents: ['security', 'quality', 'defi'],
+    builtInPlugins: [
+      {
+        id: 'security-analyzer',
+        name: 'Security Analyzer',
+        version: '1.0.0',
+        capabilities: ['vulnerability-detection', 'security-scoring']
+      },
+      {
+        id: 'gas-optimizer',
+        name: 'Gas Optimizer',
+        version: '1.0.0',
+        capabilities: ['gas-analysis', 'optimization-suggestions']
+      }
+    ]
+  }),
+
+  getStatus: jest.fn().mockImplementation(() => ({
+    isRunning: true,
+    activeConnections: mockChainIDEIntegrationService.activeConnections.size,
+    activeWorkspaces: mockChainIDEIntegrationService.workspaces.size,
+    registeredPlugins: mockChainIDEIntegrationService.pluginRegistry.size,
+    queuedAnalyses: mockChainIDEIntegrationService.realtimeAnalysisQueue.size
+  })),
+
+  generateConnectionId: jest.fn().mockReturnValue('conn_123'),
+
+  broadcastToWorkspace: jest.fn().mockImplementation((workspaceId, message, excludeConnectionId) => {
+    const workspace = mockChainIDEIntegrationService.workspaces.get(workspaceId);
+    if (!workspace) return;
+
+    workspace.members.forEach((member, userId) => {
+      if (member.connectionId !== excludeConnectionId && member.isActive) {
+        const connection = mockChainIDEIntegrationService.activeConnections.get(member.connectionId);
+        if (connection && connection.ws && connection.ws.send) {
+          connection.ws.send(JSON.stringify(message));
+        }
+      }
+    });
+  }),
+
+  handleDisconnection: jest.fn().mockImplementation((connectionId) => {
+    mockChainIDEIntegrationService.activeConnections.delete(connectionId);
+  }),
+
+  cleanup: jest.fn().mockImplementation(() => {
+    mockChainIDEIntegrationService.activeConnections.clear();
+    mockChainIDEIntegrationService.workspaces.clear();
+    mockChainIDEIntegrationService.pluginRegistry.clear();
+    mockChainIDEIntegrationService.realtimeAnalysisQueue.clear();
   })
 };
 
@@ -347,29 +563,63 @@ const mockCodeCompletionEngine = {
  */
 function setupServiceMocks() {
   // Mock JWT Auth
-  jest.doMock('../../src/middleware/jwtAuth', () => mockJwtAuth);
+  jest.mock('../../src/middleware/jwtAuth', () => mockJwtAuth);
   
   // Mock AI Services
-  jest.doMock('../../src/services/aiAnalysisPipeline', () => mockAiAnalysisPipeline);
+  jest.mock('../../src/services/aiAnalysisPipeline', () => mockAiAnalysisPipeline);
   
   // Mock Web3 Services
-  jest.doMock('../../src/services/multiChainWeb3Service', () => mockMultiChainWeb3Service);
+  jest.mock('../../src/services/multiChainWeb3Service', () => mockMultiChainWeb3Service);
   
   // Mock Development Services
-  jest.doMock('../../src/services/realTimeDevelopmentService', () => mockRealTimeDevelopmentService);
-  jest.doMock('../../src/services/syntaxValidationService', () => mockSyntaxValidationService);
-  jest.doMock('../../src/services/liveVulnerabilityDetector', () => mockLiveVulnerabilityDetector);
-  jest.doMock('../../src/services/codeCompletionEngine', () => mockCodeCompletionEngine);
+  jest.mock('../../src/services/realTimeDevelopmentService', () => mockRealTimeDevelopmentService);
+  jest.mock('../../src/services/syntaxValidationService', () => mockSyntaxValidationService);
+  jest.mock('../../src/services/liveVulnerabilityDetector', () => mockLiveVulnerabilityDetector);
+  jest.mock('../../src/services/codeCompletionEngine', () => mockCodeCompletionEngine);
   
   // Mock Collaboration Services
-  jest.doMock('../../src/services/teamCollaborationService', () => mockTeamCollaborationService);
-  jest.doMock('../../src/services/chainIDEIntegrationService', () => mockChainIDEIntegrationService);
+  jest.mock('../../src/services/teamCollaborationService', () => mockTeamCollaborationService);
+  jest.mock('../../src/services/chainIDEIntegrationService', () => mockChainIDEIntegrationService);
   
   // Mock Monitoring Services
-  jest.doMock('../../src/services/realTimeMonitoringService', () => mockRealTimeMonitoringService);
+  jest.mock('../../src/services/realTimeMonitoringService', () => mockRealTimeMonitoringService);
   
   // Mock Parser Services
-  jest.doMock('../../src/services/contractParser', () => mockContractParser);
+  jest.mock('../../src/services/contractParser', () => mockContractParser);
+  
+  // Mock audit engine
+  jest.mock('../../src/services/auditEngine', () => ({
+    performComprehensiveAudit: jest.fn().mockResolvedValue({
+      auditId: 'audit-123',
+      contractName: 'TestContract',
+      vulnerabilities: [],
+      overallScore: 85,
+      riskLevel: 'Low'
+    }),
+    getAuditResults: jest.fn().mockResolvedValue({
+      auditId: 'audit-123',
+      contractName: 'TestContract',
+      vulnerabilities: [],
+      overallScore: 85,
+      riskLevel: 'Low'
+    }),
+    getAuditHistory: jest.fn().mockResolvedValue({
+      audits: [],
+      total: 0
+    }),
+    generateReport: jest.fn().mockResolvedValue({
+      format: 'json',
+      data: {}
+    })
+  }));
+  
+  // Mock advanced rate limiter
+  jest.mock('../../src/middleware/advancedRateLimiter', () => ({
+    createRateLimitMiddleware: jest.fn(() => (req, res, next) => next()),
+    createEndpointLimiter: jest.fn(() => (req, res, next) => next()),
+    getRateLimitStatus: jest.fn().mockResolvedValue({}),
+    resetRateLimit: jest.fn().mockResolvedValue(true)
+  }));
 }
 
 /**

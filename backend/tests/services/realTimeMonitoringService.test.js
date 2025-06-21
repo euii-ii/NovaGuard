@@ -1,9 +1,15 @@
 // Using Jest's built-in expect instead of chai
 const sinon = require('sinon');
+
+// Set up environment variable to enable service testing
+process.env.TESTING_SERVICES = 'true';
+
+const { setupTestEnvironment, cleanupTestEnvironment, testUtils } = require('../setup');
+
+// Import services after setup
 const realTimeMonitoringService = require('../../src/services/realTimeMonitoringService');
 const multiChainWeb3Service = require('../../src/services/multiChainWeb3Service');
 const llmService = require('../../src/services/llmService');
-const { setupTestEnvironment, cleanupTestEnvironment, testUtils } = require('../setup');
 
 describe('Real-Time Monitoring Service', () => {
   let web3Stub;
@@ -18,7 +24,35 @@ describe('Real-Time Monitoring Service', () => {
   });
 
   beforeEach(() => {
+    // Mock the multiChainWeb3Service methods
     web3Stub = sinon.stub(multiChainWeb3Service, 'monitorEvents');
+    sinon.stub(multiChainWeb3Service, 'getContractFromAddress').resolves({
+      address: '0x1234567890123456789012345678901234567890',
+      chain: 'ethereum',
+      chainId: 1,
+      chainType: 'evm',
+      ecosystem: 'ethereum',
+      bytecode: '0x608060405234801561001057600080fd5b50',
+      balance: '0.0',
+      sourceCode: {
+        sourceCode: 'contract MockContract { }',
+        contractName: 'MockContract',
+        compilerVersion: '0.8.19'
+      },
+      crossChainAnalysis: {
+        deployedChains: [],
+        potentialBridge: false,
+        crossChainRisks: [],
+        ecosystems: ['ethereum']
+      },
+      transactionCount: 100,
+      recentActivity: {
+        transactions: [],
+        lastActivity: new Date().toISOString()
+      },
+      fetchedAt: new Date().toISOString()
+    });
+    
     llmStub = sinon.stub(llmService, 'analyzeSecurityVulnerabilities');
   });
 

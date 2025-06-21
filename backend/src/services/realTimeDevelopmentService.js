@@ -29,6 +29,7 @@ class RealTimeDevelopmentService extends EventEmitter {
       averageResponseTime: 0,
       activeUsers: 0
     };
+    this.isInitialized = false;
   }
 
   /**
@@ -51,14 +52,20 @@ class RealTimeDevelopmentService extends EventEmitter {
 
       // Initialize sub-services
       if (this.config.enableInstantFeedback) {
-        await instantFeedbackService.initialize({
-          debounceDelay: this.config.debounceDelay,
-          enableInstantValidation: this.config.enableSyntaxValidation,
-          enableSmartSuggestions: this.config.enableSmartSuggestions,
-          enableContextualHelp: true,
-          enablePerformanceHints: true
-        });
-        logger.info('Instant feedback service initialized');
+        try {
+          if (typeof instantFeedbackService.initialize === 'function') {
+            await instantFeedbackService.initialize({
+              debounceDelay: this.config.debounceDelay,
+              enableInstantValidation: this.config.enableSyntaxValidation,
+              enableSmartSuggestions: this.config.enableSmartSuggestions,
+              enableContextualHelp: true,
+              enablePerformanceHints: true
+            });
+            logger.info('Instant feedback service initialized');
+          }
+        } catch (error) {
+          logger.warn('Failed to initialize instant feedback service', { error: error.message });
+        }
       }
 
       // Start processing queue
@@ -67,6 +74,7 @@ class RealTimeDevelopmentService extends EventEmitter {
       // Set up event listeners for integrated services
       this.setupServiceEventListeners();
 
+      this.isInitialized = true;
       logger.info('Real-Time Development Service initialized', this.config);
 
     } catch (error) {
@@ -125,19 +133,29 @@ class RealTimeDevelopmentService extends EventEmitter {
       if (this.config.enableInstantFeedback) {
         const feedbackSessionId = this.getFeedbackSessionId(userId);
         if (feedbackSessionId) {
-          const feedback = await instantFeedbackService.processCodeChange(feedbackSessionId, {
-            filePath,
-            content,
-            cursorPosition,
-            changeType,
-            triggerCharacter
-          });
+          try {
+            const feedback = await instantFeedbackService.processCodeChange(feedbackSessionId, {
+              filePath,
+              content,
+              cursorPosition,
+              changeType,
+              triggerCharacter
+            });
 
-          result.instant.syntaxValidation = feedback.instant.syntax;
-          result.instant.codeCompletion = feedback.instant.completion;
-          result.instant.quickFeedback = feedback.instant.quickHints;
+            if (feedback && feedback.instant) {
+              result.instant.syntaxValidation = feedback.instant.syntax;
+              result.instant.codeCompletion = feedback.instant.completion;
+              result.instant.quickFeedback = feedback.instant.quickHints;
+            }
+          } catch (error) {
+            logger.error('Instant feedback service failed', { error: error.message });
+            // Continue with fallback services
+          }
         }
-      } else {
+      }
+      
+      // Fallback to individual services if instant feedback is disabled or failed
+      if (!this.config.enableInstantFeedback || !result.instant.syntaxValidation) {
         // Fallback to individual services
         if (this.config.enableSyntaxValidation) {
           result.instant.syntaxValidation = await this.validateSyntax(content, filePath);
@@ -214,6 +232,11 @@ class RealTimeDevelopmentService extends EventEmitter {
       });
 
       result.metadata.processingTime = Date.now() - startTime;
+
+      // Update service metrics
+      this.serviceMetrics.totalCodeChanges++;
+      this.serviceMetrics.averageResponseTime = 
+        (this.serviceMetrics.averageResponseTime + result.metadata.processingTime) / 2;
 
       this.emit('code:changed', {
         userId,
@@ -891,8 +914,36 @@ class RealTimeDevelopmentService extends EventEmitter {
   cleanup() {
     this.stopQueueProcessor();
     this.clearCaches();
+    
+    // Clear all debounce timers
     this.debounceTimers.forEach(timer => clearTimeout(timer));
     this.debounceTimers.clear();
+    
+    // End all active sessions
+    this.userSessions.forEach((session, sessionId) => {
+      if (session.feedbackSessionId) {
+        try {
+          instantFeedbackService.endFeedbackSession(session.feedbackSessionId);
+        } catch (error) {
+          logger.error('Error ending feedback session', { error: error.message });
+        }
+      }
+      
+      if (session.detectionSessionId) {
+        try {
+          liveVulnerabilityDetector.endDetectionSession(session.detectionSessionId);
+        } catch (error) {
+          logger.error('Error ending detection session', { error: error.message });
+        }
+      }
+    });
+    
+    this.userSessions.clear();
+    this.userPreferences.clear();
+    this.activeAnalyses.clear();
+    this.liveAnalysisQueue.length = 0;
+    
+    logger.info('Real-time development service cleaned up');
   }
 }
 

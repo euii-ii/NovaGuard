@@ -216,8 +216,8 @@ describe('AI Analysis Pipeline Service', () => {
       });
 
       expect(typeof result.overallScore).toBe('number');
-      expect(result.overallScore).toBeGreaterThanOrEqual(0);
-      expect(result.overallScore).toBeLessThanOrEqual(100);
+      expect(result.overallScore).toBeGreaterThanOrEqual(0);qual(0);
+      expect(result.overallScore).toBeLessThanOrEqual(100);(100);
     });
   });
 
@@ -388,7 +388,7 @@ describe('AI Analysis Pipeline Service', () => {
 
       const results = await Promise.all(promises);
 
-      expect(results).toHaveLength(3);
+      expect(results.length).toBe(3);
       results.forEach(result => {
         expect(result).toHaveProperty('overallScore');
         expect(typeof result.overallScore).toBe('number');

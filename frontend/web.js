@@ -372,3 +372,174 @@ function loco() {
 
   // Also initialize after a short delay to ensure all elements are rendered
   setTimeout(initializeFloatingElements, 1000);
+
+// Function to handle React app navigation
+function openReactApp() {
+  // Show loading indicator
+  const button = document.querySelector('button[onclick="openReactApp()"]');
+  const originalText = button ? button.textContent : 'GET STARTED';
+  if (button) {
+    button.textContent = 'LOADING...';
+    button.disabled = true;
+  }
+
+  // Try multiple possible development server URLs
+  const possibleUrls = [
+    'http://localhost:5173/react-app.html',
+    'http://localhost:5173/',
+    'http://localhost:3000/',
+    'http://localhost:4173/',
+    'http://localhost:8080/'
+  ];
+
+  // Function to check if a URL is accessible
+  function checkUrl(url) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const timeout = setTimeout(() => {
+        resolve(false);
+      }, 2000); // 2 second timeout
+
+      img.onload = img.onerror = () => {
+        clearTimeout(timeout);
+        resolve(true);
+      };
+
+      // Try to load a favicon or any small resource to test connectivity
+      img.src = url + 'favicon.ico?' + Date.now();
+    });
+  }
+
+  // Function to try each URL
+  async function tryUrls(urls) {
+    for (const url of urls) {
+      try {
+        const isAccessible = await checkUrl(url);
+        if (isAccessible) {
+          // Server is running, try to navigate to react-app.html
+          const reactAppUrl = url.includes('react-app.html') ? url : url + (url.endsWith('/') ? '' : '/') + 'react-app.html';
+          window.location.href = reactAppUrl;
+          return true;
+        }
+      } catch (error) {
+        console.log('Failed to connect to:', url);
+        continue;
+      }
+    }
+    return false;
+  }
+
+  // First try to detect if any dev server is running
+  tryUrls(possibleUrls)
+    .then(success => {
+      if (!success) {
+        // Reset button state
+        if (button) {
+          button.textContent = originalText;
+          button.disabled = false;
+        }
+
+        // Show user-friendly error message
+        showErrorMessage();
+      }
+    })
+    .catch(() => {
+      // Reset button state
+      if (button) {
+        button.textContent = originalText;
+        button.disabled = false;
+      }
+
+      // Show user-friendly error message
+      showErrorMessage();
+    });
+}
+
+// Function to show error message to user
+function showErrorMessage() {
+  // Create modal overlay
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  `;
+
+  // Create modal content
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background: #1e1e1e;
+    color: #ffffff;
+    padding: 40px;
+    border-radius: 12px;
+    max-width: 500px;
+    margin: 20px;
+    text-align: center;
+    border: 1px solid #404040;
+  `;
+
+  modal.innerHTML = `
+    <h2 style="margin: 0 0 20px 0; color: #0e639c;">🚀 Development Server Required</h2>
+    <p style="margin: 0 0 20px 0; line-height: 1.6;">
+      To access the ChainIDE React application, you need to start the development server first.
+    </p>
+    <div style="background: #2d2d2d; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: left;">
+      <p style="margin: 0 0 10px 0; font-weight: bold;">Run these commands:</p>
+      <code style="display: block; margin: 5px 0; font-family: monospace; color: #4ade80;">npm install</code>
+      <code style="display: block; margin: 5px 0; font-family: monospace; color: #4ade80;">npm run dev</code>
+    </div>
+    <p style="margin: 0 0 20px 0; font-size: 14px; color: #969696;">
+      The server will typically run on <strong>http://localhost:5173</strong>
+    </p>
+    <button id="closeModal" style="
+      background: #0e639c;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 10px;
+    ">Got it!</button>
+    <button id="retryConnection" style="
+      background: #16a34a;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+    ">Try Again</button>
+  `;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // Add event listeners
+  document.getElementById('closeModal').onclick = () => {
+    document.body.removeChild(overlay);
+  };
+
+  document.getElementById('retryConnection').onclick = () => {
+    document.body.removeChild(overlay);
+    openReactApp();
+  };
+
+  // Close on overlay click
+  overlay.onclick = (e) => {
+    if (e.target === overlay) {
+      document.body.removeChild(overlay);
+    }
+  };
+}
+
+// Make function globally available
+window.openReactApp = openReactApp;

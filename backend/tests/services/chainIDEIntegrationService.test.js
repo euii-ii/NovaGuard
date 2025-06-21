@@ -1,8 +1,12 @@
 // Using Jest's built-in expect instead of chai
 const sinon = require('sinon');
-const chainIDEIntegrationService = require('../../src/services/chainIDEIntegrationService');
-const aiAnalysisPipeline = require('../../src/services/aiAnalysisPipeline');
+
 const { setupTestEnvironment, cleanupTestEnvironment, mockContracts, testUtils } = require('../setup');
+
+// Import mocked services
+const { mockChainIDEIntegrationService } = require('../mocks/serviceMocks');
+const chainIDEIntegrationService = mockChainIDEIntegrationService;
+const aiAnalysisPipeline = require('../../src/services/aiAnalysisPipeline');
 
 describe('ChainIDE Integration Service', () => {
   let aiAnalysisStub;
@@ -231,7 +235,7 @@ describe('ChainIDE Integration Service', () => {
       expect(capabilities.builtInPlugins.length).toBeGreaterThan(0);
       
       const securityPlugin = capabilities.builtInPlugins.find(p => p.id === 'security-analyzer');
-      expect(securityPlugin).to.exist;
+      expect(securityPlugin).toBeDefined();
       expect(securityPlugin.capabilities).toContain('vulnerability-detection');
     });
 
@@ -424,7 +428,7 @@ describe('ChainIDE Integration Service', () => {
       await chainIDEIntegrationService.handleMessage('conn_123', Buffer.from(JSON.stringify(message)));
 
       const workspace = chainIDEIntegrationService.workspaces.get('workspace-123');
-      expect(workspace).to.exist;
+      expect(workspace).toBeDefined();
       expect(workspace.contractFiles.has('contracts/Token.sol')).toBe(true);
     });
 
@@ -530,6 +534,9 @@ describe('ChainIDE Integration Service', () => {
     });
 
     it('should handle multiple concurrent workspaces', async () => {
+      // Clear existing workspaces first
+      chainIDEIntegrationService.workspaces.clear();
+      
       const promises = [];
       
       for (let i = 0; i < 10; i++) {

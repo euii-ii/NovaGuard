@@ -156,10 +156,20 @@ app.post('/api/v1/monitoring/start',
   jwtAuth.authorize(['admin', 'enterprise']),
   async (req, res) => {
     try {
-      await realTimeMonitoringService.startMonitoring(req.body);
+      const { contractAddress, chain = 'ethereum', ...options } = req.body;
+
+      if (!contractAddress) {
+        return res.status(400).json({
+          success: false,
+          error: 'Contract address is required'
+        });
+      }
+
+      const result = await realTimeMonitoringService.startMonitoring(contractAddress, { chain, ...options });
       res.json({
         success: true,
-        message: 'Real-time monitoring started'
+        message: 'Real-time monitoring started',
+        data: result
       });
     } catch (error) {
       logger.error('Failed to start monitoring', { error: error.message });
@@ -245,10 +255,10 @@ async function gracefulShutdown(signal) {
     logger.info('Analytics cache cleared');
 
     logger.info('Graceful shutdown completed');
-    throw new Error('Graceful shutdown completed');
+    process.exit(0);
   } catch (error) {
     logger.error('Error during graceful shutdown', { error: error.message });
-    throw new Error('Error during graceful shutdown: ' + error.message);
+    process.exit(1);
   }
 }
 
@@ -270,45 +280,61 @@ async function initializeServices() {
 
     // Initialize ChainIDE integration service
     if (process.env.ENABLE_CHAINIDE_INTEGRATION !== 'false') {
-      await chainIDEIntegrationService.initialize({
-        port: process.env.CHAINIDE_WS_PORT || 8080,
-        enableRealTimeAnalysis: true,
-        enableCollaboration: true
-      });
-      logger.info('ChainIDE integration service initialized');
+      try {
+        await chainIDEIntegrationService.initialize({
+          port: process.env.CHAINIDE_WS_PORT || 8080,
+          enableRealTimeAnalysis: true,
+          enableCollaboration: true
+        });
+        logger.info('ChainIDE integration service initialized');
+      } catch (error) {
+        logger.error('Failed to initialize ChainIDE integration service', { error: error.message });
+      }
     }
 
     // Initialize real-time development service
-    await realTimeDevelopmentService.initialize({
-      enableSyntaxValidation: true,
-      enableLiveAnalysis: true,
-      enableCodeCompletion: true,
-      enableSmartSuggestions: true
-    });
-    logger.info('Real-time development service initialized');
+    try {
+      await realTimeDevelopmentService.initialize({
+        enableSyntaxValidation: true,
+        enableLiveAnalysis: true,
+        enableCodeCompletion: true,
+        enableSmartSuggestions: true
+      });
+      logger.info('Real-time development service initialized');
+    } catch (error) {
+      logger.error('Failed to initialize real-time development service', { error: error.message });
+    }
 
     // Initialize team collaboration service
-    await teamCollaborationService.initialize({
-      maxTeamSize: 50,
-      maxConcurrentReviews: 10,
-      enableRealTimeNotifications: true,
-      enableTeamAnalytics: true,
-      autoAssignReviewers: true
-    });
-    logger.info('Team collaboration service initialized');
+    try {
+      await teamCollaborationService.initialize({
+        maxTeamSize: 50,
+        maxConcurrentReviews: 10,
+        enableRealTimeNotifications: true,
+        enableTeamAnalytics: true,
+        autoAssignReviewers: true
+      });
+      logger.info('Team collaboration service initialized');
+    } catch (error) {
+      logger.error('Failed to initialize team collaboration service', { error: error.message });
+    }
 
     // Initialize shared workspace analytics
-    await sharedWorkspaceAnalytics.initialize({
-      metricsRetentionDays: 90,
-      realTimeUpdateInterval: 30000,
-      enableDetailedTracking: true,
-      enableUserPrivacy: true
-    });
-    logger.info('Shared workspace analytics initialized');
+    try {
+      await sharedWorkspaceAnalytics.initialize({
+        metricsRetentionDays: 90,
+        realTimeUpdateInterval: 30000,
+        enableDetailedTracking: true,
+        enableUserPrivacy: true
+      });
+      logger.info('Shared workspace analytics initialized');
+    } catch (error) {
+      logger.error('Failed to initialize shared workspace analytics', { error: error.message });
+    }
 
     // Initialize real-time monitoring if enabled
     if (process.env.ENABLE_REAL_TIME_MONITORING === 'true') {
-      await realTimeMonitoringService.startMonitoring({
+      await realTimeMonitoringService.initialize({
         autoStart: true,
         enableMEVDetection: true,
         enableAnomalyDetection: true

@@ -71,7 +71,7 @@ describe('Multi-Chain Web3 Service', () => {
         expect(chain).toHaveProperty('ecosystem');
         expect(chain.chainId).toEqual(expect.any(Number));
         expect(chain.rpcUrl).toEqual(expect.any(String));
-        expect(['evm', 'move', 'solana']).toContain(chain.type);
+        expect(['evm', 'move', 'solana', 'layer2']).toContain(chain.type);
         expect(['ethereum', 'aptos', 'solana', 'sui']).toContain(chain.ecosystem);
       });
     });
@@ -374,7 +374,7 @@ describe('Multi-Chain Web3 Service', () => {
         await multiChainWeb3Service.verifyContract('unsupported_chain', contractAddress);
         throw new Error('Should have thrown an error');
       } catch (error) {
-        expect(error.message).toContain('not implemented');
+        expect(error.message).toContain('Unsupported chain');
       }
     });
 
@@ -398,7 +398,7 @@ describe('Multi-Chain Web3 Service', () => {
         await multiChainWeb3Service.verifyContract('ethereum', invalidAddress);
         throw new Error('Should have thrown an error');
       } catch (error) {
-        expect(error.message).toContain('not implemented');
+        expect(error.message).toContain('Invalid address');
       }
     });
   });

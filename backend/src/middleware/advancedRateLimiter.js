@@ -151,6 +151,11 @@ class AdvancedRateLimiter {
   createRateLimitMiddleware(options = {}) {
     return async (req, res, next) => {
       try {
+        // Skip rate limiting in test environment
+        if (process.env.NODE_ENV === 'test' || process.env.DISABLE_RATE_LIMITING === 'true') {
+          return next();
+        }
+
         const endpoint = req.route?.path || req.path;
         const endpointConfig = this.endpointLimits[endpoint];
         

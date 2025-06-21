@@ -5,9 +5,20 @@ process.env.JWT_SECRET = 'test-secret-key';
 process.env.DISABLE_RATE_LIMITING = 'true';
 process.env.DATABASE_URL = 'sqlite::memory:';
 
+// Disable rate limiting completely for tests
+process.env.RATE_LIMIT_ANONYMOUS_POINTS = '999999';
+process.env.RATE_LIMIT_AUTH_POINTS = '999999';
+process.env.RATE_LIMIT_PREMIUM_POINTS = '999999';
+process.env.RATE_LIMIT_API_POINTS = '999999';
+process.env.RATE_LIMIT_HEAVY_POINTS = '999999';
+process.env.RATE_LIMIT_BURST_POINTS = '999999';
+
 // Setup service mocks before importing anything else
 const { setupServiceMocks, resetServiceMocks } = require('./mocks/serviceMocks');
-setupServiceMocks();
+// Only setup mocks if not testing specific services
+if (!process.env.TESTING_SERVICES) {
+  setupServiceMocks();
+}
 
 // Import test libraries
 const request = require('supertest');
@@ -95,7 +106,9 @@ function createTestUser(userData = {}) {
   
   const user = { ...defaultUser, ...userData };
   const token = jwt.sign(user, testConfig.jwt.secret, {
-    expiresIn: testConfig.jwt.expiresIn
+    expiresIn: testConfig.jwt.expiresIn,
+    audience: 'api-users',
+    issuer: 'smart-contract-auditor'
   });
   
   return { user, token };

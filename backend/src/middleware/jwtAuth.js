@@ -67,7 +67,7 @@ class JWTAuthMiddleware {
    * @param {Object} res - Express response object
    * @param {Function} next - Next middleware function
    */
-  authenticate(req, res, next) {
+  authenticate = (req, res, next) => {
     try {
       const authHeader = req.headers.authorization;
       
@@ -133,7 +133,7 @@ class JWTAuthMiddleware {
    * @param {Object} res - Express response object
    * @param {Function} next - Next middleware function
    */
-  optionalAuth(req, res, next) {
+  optionalAuth = (req, res, next) => {
     try {
       const authHeader = req.headers.authorization;
       
@@ -296,17 +296,7 @@ class JWTAuthMiddleware {
   }
 }
 
-// Create instance and bind methods
+// Create instance
 const jwtAuthInstance = new JWTAuthMiddleware();
 
-module.exports = {
-  generateToken: jwtAuthInstance.generateToken.bind(jwtAuthInstance),
-  generateRefreshToken: jwtAuthInstance.generateRefreshToken.bind(jwtAuthInstance),
-  verifyToken: jwtAuthInstance.verifyToken.bind(jwtAuthInstance),
-  authenticate: jwtAuthInstance.authenticate.bind(jwtAuthInstance),
-  optionalAuth: jwtAuthInstance.optionalAuth.bind(jwtAuthInstance),
-  authorize: jwtAuthInstance.authorize.bind(jwtAuthInstance),
-  requirePermissions: jwtAuthInstance.requirePermissions.bind(jwtAuthInstance),
-  createApiKey: jwtAuthInstance.createApiKey.bind(jwtAuthInstance),
-  validateApiKey: jwtAuthInstance.validateApiKey.bind(jwtAuthInstance)
-};
+module.exports = jwtAuthInstance;

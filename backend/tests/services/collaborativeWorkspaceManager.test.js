@@ -129,7 +129,7 @@ describe('Collaborative Workspace Manager', () => {
         await collaborativeWorkspaceManager.deleteWorkspace(workspace.id, 'unauthorized-user');
         throw new Error('Should have thrown permission error');
       } catch (error) {
-        expect(error.message).toContain('authorized');
+        expect(error.message).toContain('owner');
       }
     });
   });

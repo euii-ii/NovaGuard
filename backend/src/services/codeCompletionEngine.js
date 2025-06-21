@@ -1,601 +1,439 @@
 const logger = require('../utils/logger');
 
 /**
- * Advanced Code Completion Engine
- * Provides intelligent code completion for Solidity smart contracts
+ * Code Completion Engine
+ * Provides intelligent code completion for Solidity development
  */
 class CodeCompletionEngine {
   constructor() {
-    this.solidityKeywords = this.initializeSolidityKeywords();
-    this.solidityTypes = this.initializeSolidityTypes();
-    this.solidityBuiltins = this.initializeSolidityBuiltins();
-    this.commonPatterns = this.initializeCommonPatterns();
-    this.contextCache = new Map();
     this.completionCache = new Map();
+    this.solidityKeywords = this.initializeSolidityKeywords();
+    this.stats = {
+      totalRequests: 0,
+      cacheHits: 0,
+      averageResponseTime: 0
+    };
   }
 
   /**
-   * Initialize Solidity keywords
-   * @returns {Array} Solidity keywords
+   * Initialize Solidity keywords and built-in types
+   * @returns {Object} Categorized keywords
    */
   initializeSolidityKeywords() {
-    return [
-      // Contract structure
-      'contract', 'interface', 'library', 'abstract',
-      'pragma', 'import', 'using', 'for',
-      
-      // Function modifiers
-      'function', 'modifier', 'constructor', 'fallback', 'receive',
-      'public', 'private', 'internal', 'external',
-      'pure', 'view', 'payable', 'nonpayable',
-      'virtual', 'override',
-      
-      // Control flow
-      'if', 'else', 'while', 'for', 'do', 'break', 'continue',
-      'return', 'try', 'catch', 'revert', 'require', 'assert',
-      
-      // Storage
-      'storage', 'memory', 'calldata', 'constant', 'immutable',
-      
-      // Events and errors
-      'event', 'error', 'emit',
-      
-      // Assembly
-      'assembly', 'let', 'switch', 'case', 'default',
-      
-      // Other
-      'new', 'delete', 'this', 'super', 'selfdestruct',
-      'type', 'unchecked', 'anonymous', 'indexed'
-    ];
+    return {
+      keywords: [
+        'pragma', 'solidity', 'contract', 'interface', 'library', 'import', 'using',
+        'function', 'modifier', 'event', 'struct', 'enum', 'mapping', 'array',
+        'public', 'private', 'internal', 'external', 'pure', 'view', 'payable',
+        'constant', 'immutable', 'override', 'virtual', 'abstract',
+        'if', 'else', 'for', 'while', 'do', 'break', 'continue', 'return',
+        'try', 'catch', 'throw', 'require', 'assert', 'revert',
+        'new', 'delete', 'this', 'super', 'selfdestruct', 'suicide'
+      ],
+      types: [
+        'bool', 'uint', 'int', 'address', 'bytes', 'string',
+        'uint8', 'uint16', 'uint32', 'uint64', 'uint128', 'uint256',
+        'int8', 'int16', 'int32', 'int64', 'int128', 'int256',
+        'bytes1', 'bytes2', 'bytes4', 'bytes8', 'bytes16', 'bytes32',
+        'fixed', 'ufixed'
+      ],
+      globalVariables: [
+        'msg.sender', 'msg.value', 'msg.data', 'msg.sig',
+        'tx.origin', 'tx.gasprice',
+        'block.coinbase', 'block.difficulty', 'block.gaslimit',
+        'block.number', 'block.timestamp', 'block.blockhash',
+        'now', 'gasleft'
+      ],
+      functions: [
+        'keccak256', 'sha256', 'sha3', 'ripemd160',
+        'ecrecover', 'addmod', 'mulmod',
+        'abi.encode', 'abi.encodePacked', 'abi.encodeWithSelector', 'abi.encodeWithSignature',
+        'abi.decode'
+      ]
+    };
   }
 
   /**
-   * Initialize Solidity types
-   * @returns {Array} Solidity types
-   */
-  initializeSolidityTypes() {
-    const types = [
-      // Basic types
-      'bool', 'string', 'bytes', 'address', 'address payable',
-      
-      // Arrays
-      'bytes32[]', 'uint256[]', 'address[]', 'string[]',
-      
-      // Mappings
-      'mapping(address => uint256)',
-      'mapping(address => bool)',
-      'mapping(bytes32 => address)',
-      'mapping(uint256 => address)',
-      
-      // Common structs
-      'struct'
-    ];
-
-    // Add uint and int variants
-    for (let i = 8; i <= 256; i += 8) {
-      types.push(`uint${i}`, `int${i}`);
-    }
-
-    // Add bytes variants
-    for (let i = 1; i <= 32; i++) {
-      types.push(`bytes${i}`);
-    }
-
-    return types;
-  }
-
-  /**
-   * Initialize Solidity built-in functions and variables
-   * @returns {Array} Built-in functions and variables
-   */
-  initializeSolidityBuiltins() {
-    return [
-      // Global variables
-      'msg.sender', 'msg.value', 'msg.data', 'msg.sig',
-      'tx.origin', 'tx.gasprice',
-      'block.timestamp', 'block.number', 'block.difficulty', 'block.gaslimit',
-      'block.coinbase', 'block.chainid', 'block.basefee',
-      'gasleft()', 'blockhash()',
-      
-      // Address methods
-      '.balance', '.code', '.codehash',
-      '.call()', '.delegatecall()', '.staticcall()',
-      '.send()', '.transfer()',
-      
-      // Array methods
-      '.length', '.push()', '.pop()',
-      
-      // String methods
-      'abi.encode()', 'abi.encodePacked()', 'abi.encodeWithSignature()',
-      'abi.encodeWithSelector()', 'abi.decode()',
-      
-      // Crypto functions
-      'keccak256()', 'sha256()', 'ripemd160()',
-      'ecrecover()',
-      
-      // Math functions
-      'addmod()', 'mulmod()',
-      
-      // Type conversions
-      'uint256()', 'address()', 'bytes32()', 'string()'
-    ];
-  }
-
-  /**
-   * Initialize common smart contract patterns
-   * @returns {Array} Common patterns
-   */
-  initializeCommonPatterns() {
-    return [
-      {
-        trigger: 'onlyOwner',
-        completion: 'modifier onlyOwner() {\n    require(msg.sender == owner, "Not the owner");\n    _;\n}',
-        description: 'Access control modifier for owner-only functions'
-      },
-      {
-        trigger: 'nonReentrant',
-        completion: 'modifier nonReentrant() {\n    require(!locked, "Reentrant call");\n    locked = true;\n    _;\n    locked = false;\n}',
-        description: 'Reentrancy guard modifier'
-      },
-      {
-        trigger: 'safeTransfer',
-        completion: 'function safeTransfer(address to, uint256 amount) internal {\n    require(to != address(0), "Transfer to zero address");\n    require(balances[msg.sender] >= amount, "Insufficient balance");\n    balances[msg.sender] -= amount;\n    balances[to] += amount;\n    emit Transfer(msg.sender, to, amount);\n}',
-        description: 'Safe token transfer function'
-      },
-      {
-        trigger: 'constructor',
-        completion: 'constructor() {\n    owner = msg.sender;\n}',
-        description: 'Basic constructor with owner initialization'
-      },
-      {
-        trigger: 'event Transfer',
-        completion: 'event Transfer(address indexed from, address indexed to, uint256 value);',
-        description: 'Standard ERC20 Transfer event'
-      },
-      {
-        trigger: 'event Approval',
-        completion: 'event Approval(address indexed owner, address indexed spender, uint256 value);',
-        description: 'Standard ERC20 Approval event'
-      }
-    ];
-  }
-
-  /**
-   * Get code completion suggestions
-   * @param {string} content - Full contract content
-   * @param {Object} position - Cursor position {line, column}
+   * Get code completions for given context
+   * @param {string} content - Current code content
+   * @param {Object} cursorPosition - Cursor position {line, column}
    * @param {string} filePath - File path for context
    * @returns {Object} Completion suggestions
    */
-  async getCompletions(content, position, filePath) {
+  async getCompletions(content, cursorPosition, filePath = '') {
     try {
-      const context = this.analyzeContext(content, position);
-      const cacheKey = this.generateCacheKey(content, position, context);
-      
+      this.stats.totalRequests++;
+      const startTime = Date.now();
+
+      // Generate cache key
+      const context = this.extractContext(content, cursorPosition);
+      const cacheKey = this.generateCacheKey(context);
+
       // Check cache
-      const cached = this.completionCache.get(cacheKey);
-      if (cached && Date.now() - cached.timestamp < 5000) { // 5 second cache
-        return cached.completions;
+      if (this.completionCache.has(cacheKey)) {
+        this.stats.cacheHits++;
+        return this.completionCache.get(cacheKey);
       }
 
-      const completions = {
-        suggestions: [],
-        context: context.type,
-        triggerCharacter: context.triggerCharacter,
-        range: context.range,
-        timestamp: new Date().toISOString()
-      };
+      // Generate completions based on context
+      const completions = await this.generateCompletions(content, cursorPosition, context);
 
-      // Get context-specific completions
-      switch (context.type) {
-        case 'keyword':
-          completions.suggestions = this.getKeywordCompletions(context);
-          break;
-        case 'type':
-          completions.suggestions = this.getTypeCompletions(context);
-          break;
-        case 'function_call':
-          completions.suggestions = this.getFunctionCompletions(content, context);
-          break;
-        case 'member_access':
-          completions.suggestions = this.getMemberCompletions(content, context);
-          break;
-        case 'variable':
-          completions.suggestions = this.getVariableCompletions(content, context);
-          break;
-        case 'import':
-          completions.suggestions = this.getImportCompletions(context);
-          break;
-        case 'pragma':
-          completions.suggestions = this.getPragmaCompletions(context);
-          break;
-        case 'pattern':
-          completions.suggestions = this.getPatternCompletions(context);
-          break;
-        default:
-          completions.suggestions = this.getGeneralCompletions(content, context);
-      }
+      // Cache the result
+      this.completionCache.set(cacheKey, completions);
 
-      // Add built-in completions
-      completions.suggestions.push(...this.getBuiltinCompletions(context));
-
-      // Sort by relevance
-      completions.suggestions = this.sortByRelevance(completions.suggestions, context);
-
-      // Cache result
-      this.completionCache.set(cacheKey, {
-        completions,
-        timestamp: Date.now()
-      });
+      // Update stats
+      const responseTime = Date.now() - startTime;
+      this.stats.averageResponseTime = 
+        (this.stats.averageResponseTime + responseTime) / 2;
 
       return completions;
 
     } catch (error) {
-      logger.error('Code completion failed', { error: error.message });
+      logger.error('Code completion failed', { error: error.message, filePath });
       return {
         suggestions: [],
-        context: 'unknown',
+        context: { type: 'unknown' },
         timestamp: new Date().toISOString()
       };
     }
   }
 
   /**
-   * Analyze context around cursor position
-   * @param {string} content - Contract content
-   * @param {Object} position - Cursor position
-   * @returns {Object} Context analysis
+   * Extract context around cursor position
+   * @param {string} content - Code content
+   * @param {Object} cursorPosition - Cursor position
+   * @returns {Object} Context information
    */
-  analyzeContext(content, position) {
+  extractContext(content, cursorPosition) {
     const lines = content.split('\n');
-    const currentLine = lines[position.line] || '';
-    const textBefore = currentLine.substring(0, position.column);
-    const textAfter = currentLine.substring(position.column);
-    
-    // Get surrounding context
-    const contextLines = this.getContextLines(lines, position.line, 3);
-    const fullContext = contextLines.join('\n');
+    const currentLine = lines[cursorPosition.line - 1] || '';
+    const textBefore = currentLine.substring(0, cursorPosition.column);
+    const textAfter = currentLine.substring(cursorPosition.column);
 
     // Determine context type
-    const context = {
-      line: position.line,
-      column: position.column,
-      textBefore,
-      textAfter,
-      currentLine,
-      fullContext,
-      type: 'general',
-      triggerCharacter: null,
-      range: null,
-      partial: '',
-      scope: this.determineScope(fullContext, position.line)
-    };
+    let contextType = 'general';
+    let prefix = '';
 
-    // Analyze trigger character
-    const lastChar = textBefore.slice(-1);
-    if (lastChar === '.') {
-      context.type = 'member_access';
-      context.triggerCharacter = '.';
-      context.object = this.extractObjectName(textBefore);
-    } else if (lastChar === '(') {
-      context.type = 'function_call';
-      context.triggerCharacter = '(';
-      context.functionName = this.extractFunctionName(textBefore);
-    } else if (textBefore.includes('import ')) {
-      context.type = 'import';
-      context.partial = this.extractImportPath(textBefore);
-    } else if (textBefore.includes('pragma ')) {
-      context.type = 'pragma';
-      context.partial = this.extractPragmaDirective(textBefore);
+    if (textBefore.endsWith('.')) {
+      contextType = 'member_access';
+      const words = textBefore.split(/\s+/);
+      prefix = words[words.length - 1].slice(0, -1); // Remove the dot
+    } else if (textBefore.match(/\b(function|modifier|event)\s+$/)) {
+      contextType = 'declaration';
+    } else if (textBefore.match(/\b(uint|int|bool|address|string|bytes)\d*\s*$/)) {
+      contextType = 'type_declaration';
+    } else if (textBefore.match(/\bpragma\s+$/)) {
+      contextType = 'pragma';
+    } else if (textBefore.match(/\bimport\s+$/)) {
+      contextType = 'import';
     } else {
-      // Analyze word context
-      const wordMatch = textBefore.match(/(\w+)$/);
-      if (wordMatch) {
-        context.partial = wordMatch[1];
-        context.type = this.determineWordContext(textBefore, context.partial, fullContext);
+      // Check for partial word
+      const match = textBefore.match(/\b(\w+)$/);
+      if (match) {
+        prefix = match[1];
+        contextType = 'keyword_or_identifier';
       }
     }
 
-    return context;
+    return {
+      type: contextType,
+      prefix,
+      textBefore,
+      textAfter,
+      currentLine,
+      lineNumber: cursorPosition.line
+    };
   }
 
   /**
-   * Get keyword completions
+   * Generate completions based on context
+   * @param {string} content - Code content
+   * @param {Object} cursorPosition - Cursor position
    * @param {Object} context - Context information
-   * @returns {Array} Keyword suggestions
+   * @returns {Object} Completion suggestions
    */
-  getKeywordCompletions(context) {
-    return this.solidityKeywords
-      .filter(keyword => keyword.startsWith(context.partial))
-      .map(keyword => ({
-        label: keyword,
-        kind: 'keyword',
-        detail: 'Solidity keyword',
-        insertText: keyword,
-        priority: 10
-      }));
-  }
-
-  /**
-   * Get type completions
-   * @param {Object} context - Context information
-   * @returns {Array} Type suggestions
-   */
-  getTypeCompletions(context) {
-    return this.solidityTypes
-      .filter(type => type.startsWith(context.partial))
-      .map(type => ({
-        label: type,
-        kind: 'type',
-        detail: 'Solidity type',
-        insertText: type,
-        priority: 9
-      }));
-  }
-
-  /**
-   * Get function completions
-   * @param {string} content - Contract content
-   * @param {Object} context - Context information
-   * @returns {Array} Function suggestions
-   */
-  getFunctionCompletions(content, context) {
-    const functions = this.extractFunctions(content);
-    return functions
-      .filter(func => func.name.startsWith(context.partial))
-      .map(func => ({
-        label: func.name,
-        kind: 'function',
-        detail: `function ${func.signature}`,
-        insertText: `${func.name}(${func.parameters})`,
-        documentation: func.documentation,
-        priority: 8
-      }));
-  }
-
-  /**
-   * Get member access completions
-   * @param {string} content - Contract content
-   * @param {Object} context - Context information
-   * @returns {Array} Member suggestions
-   */
-  getMemberCompletions(content, context) {
-    const objectType = this.inferObjectType(content, context.object);
-    const members = this.getTypeMembers(objectType);
-    
-    return members.map(member => ({
-      label: member.name,
-      kind: member.kind,
-      detail: member.detail,
-      insertText: member.insertText,
-      documentation: member.documentation,
-      priority: 7
-    }));
-  }
-
-  /**
-   * Get variable completions
-   * @param {string} content - Contract content
-   * @param {Object} context - Context information
-   * @returns {Array} Variable suggestions
-   */
-  getVariableCompletions(content, context) {
-    const variables = this.extractVariables(content, context.scope);
-    return variables
-      .filter(variable => variable.name.startsWith(context.partial))
-      .map(variable => ({
-        label: variable.name,
-        kind: 'variable',
-        detail: `${variable.type} ${variable.name}`,
-        insertText: variable.name,
-        priority: 6
-      }));
-  }
-
-  /**
-   * Get pattern completions
-   * @param {Object} context - Context information
-   * @returns {Array} Pattern suggestions
-   */
-  getPatternCompletions(context) {
-    return this.commonPatterns
-      .filter(pattern => pattern.trigger.startsWith(context.partial))
-      .map(pattern => ({
-        label: pattern.trigger,
-        kind: 'snippet',
-        detail: pattern.description,
-        insertText: pattern.completion,
-        documentation: pattern.description,
-        priority: 5
-      }));
-  }
-
-  /**
-   * Get built-in completions
-   * @param {Object} context - Context information
-   * @returns {Array} Built-in suggestions
-   */
-  getBuiltinCompletions(context) {
-    return this.solidityBuiltins
-      .filter(builtin => builtin.startsWith(context.partial))
-      .map(builtin => ({
-        label: builtin,
-        kind: 'builtin',
-        detail: 'Solidity built-in',
-        insertText: builtin,
-        priority: 4
-      }));
-  }
-
-  /**
-   * Get general completions
-   * @param {string} content - Contract content
-   * @param {Object} context - Context information
-   * @returns {Array} General suggestions
-   */
-  getGeneralCompletions(content, context) {
+  async generateCompletions(content, cursorPosition, context) {
     const suggestions = [];
-    
-    // Add keywords
-    suggestions.push(...this.getKeywordCompletions(context));
-    
-    // Add types
-    suggestions.push(...this.getTypeCompletions(context));
-    
-    // Add patterns
-    suggestions.push(...this.getPatternCompletions(context));
-    
+
+    switch (context.type) {
+      case 'member_access':
+        suggestions.push(...this.getMemberAccessCompletions(context.prefix, content));
+        break;
+
+      case 'pragma':
+        suggestions.push(...this.getPragmaCompletions());
+        break;
+
+      case 'import':
+        suggestions.push(...this.getImportCompletions());
+        break;
+
+      case 'type_declaration':
+        suggestions.push(...this.getTypeCompletions());
+        break;
+
+      case 'declaration':
+        suggestions.push(...this.getDeclarationCompletions(context.textBefore));
+        break;
+
+      case 'keyword_or_identifier':
+        suggestions.push(...this.getKeywordCompletions(context.prefix));
+        suggestions.push(...this.getIdentifierCompletions(content, context.prefix));
+        break;
+
+      default:
+        suggestions.push(...this.getGeneralCompletions(context.prefix));
+        break;
+    }
+
+    return {
+      suggestions: suggestions.slice(0, 20), // Limit to 20 suggestions
+      context,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Get member access completions (e.g., msg., block., etc.)
+   * @param {string} object - Object name
+   * @param {string} content - Full content for context
+   * @returns {Array} Completion suggestions
+   */
+  getMemberAccessCompletions(object, content) {
+    const suggestions = [];
+
+    const memberMappings = {
+      'msg': [
+        { label: 'sender', kind: 'property', detail: 'address - Message sender' },
+        { label: 'value', kind: 'property', detail: 'uint256 - Message value in wei' },
+        { label: 'data', kind: 'property', detail: 'bytes - Complete calldata' },
+        { label: 'sig', kind: 'property', detail: 'bytes4 - Function signature' }
+      ],
+      'block': [
+        { label: 'coinbase', kind: 'property', detail: 'address - Current block miner' },
+        { label: 'difficulty', kind: 'property', detail: 'uint256 - Current block difficulty' },
+        { label: 'gaslimit', kind: 'property', detail: 'uint256 - Current block gas limit' },
+        { label: 'number', kind: 'property', detail: 'uint256 - Current block number' },
+        { label: 'timestamp', kind: 'property', detail: 'uint256 - Current block timestamp' }
+      ],
+      'tx': [
+        { label: 'origin', kind: 'property', detail: 'address - Transaction origin' },
+        { label: 'gasprice', kind: 'property', detail: 'uint256 - Transaction gas price' }
+      ],
+      'abi': [
+        { label: 'encode', kind: 'method', detail: 'Encode arguments' },
+        { label: 'encodePacked', kind: 'method', detail: 'Encode arguments packed' },
+        { label: 'encodeWithSelector', kind: 'method', detail: 'Encode with function selector' },
+        { label: 'encodeWithSignature', kind: 'method', detail: 'Encode with function signature' },
+        { label: 'decode', kind: 'method', detail: 'Decode data' }
+      ]
+    };
+
+    if (memberMappings[object]) {
+      suggestions.push(...memberMappings[object]);
+    }
+
+    // For address type
+    if (object.includes('address') || this.isAddressVariable(object, content)) {
+      suggestions.push(
+        { label: 'balance', kind: 'property', detail: 'uint256 - Address balance' },
+        { label: 'call', kind: 'method', detail: 'Low-level call' },
+        { label: 'delegatecall', kind: 'method', detail: 'Delegate call' },
+        { label: 'staticcall', kind: 'method', detail: 'Static call' },
+        { label: 'transfer', kind: 'method', detail: 'Transfer Ether (2300 gas)' },
+        { label: 'send', kind: 'method', detail: 'Send Ether (2300 gas)' }
+      );
+    }
+
     return suggestions;
   }
 
   /**
-   * Sort suggestions by relevance
-   * @param {Array} suggestions - Completion suggestions
-   * @param {Object} context - Context information
-   * @returns {Array} Sorted suggestions
+   * Get pragma completions
+   * @returns {Array} Pragma suggestions
    */
-  sortByRelevance(suggestions, context) {
-    return suggestions.sort((a, b) => {
-      // Sort by priority first
-      if (a.priority !== b.priority) {
-        return b.priority - a.priority;
-      }
-      
-      // Then by exact match
-      const aExact = a.label === context.partial;
-      const bExact = b.label === context.partial;
-      if (aExact !== bExact) {
-        return bExact ? 1 : -1;
-      }
-      
-      // Then by prefix match
-      const aPrefix = a.label.startsWith(context.partial);
-      const bPrefix = b.label.startsWith(context.partial);
-      if (aPrefix !== bPrefix) {
-        return bPrefix ? 1 : -1;
-      }
-      
-      // Finally by alphabetical order
-      return a.label.localeCompare(b.label);
-    });
-  }
-
-  // Helper methods (simplified implementations)
-  getContextLines(lines, currentLine, radius) {
-    const start = Math.max(0, currentLine - radius);
-    const end = Math.min(lines.length, currentLine + radius + 1);
-    return lines.slice(start, end);
-  }
-
-  determineScope(content, line) {
-    // Simplified scope determination
-    return 'contract';
-  }
-
-  extractObjectName(textBefore) {
-    const match = textBefore.match(/(\w+)\.$/);
-    return match ? match[1] : '';
-  }
-
-  extractFunctionName(textBefore) {
-    const match = textBefore.match(/(\w+)\($/);
-    return match ? match[1] : '';
-  }
-
-  extractImportPath(textBefore) {
-    const match = textBefore.match(/import\s+["']([^"']*)$/);
-    return match ? match[1] : '';
-  }
-
-  extractPragmaDirective(textBefore) {
-    const match = textBefore.match(/pragma\s+(\w*)$/);
-    return match ? match[1] : '';
-  }
-
-  determineWordContext(textBefore, partial, fullContext) {
-    if (/\b(uint|int|bool|address|string|bytes)\s*$/.test(textBefore)) {
-      return 'type';
-    } else if (/\b(function|modifier|event|error)\s+\w*$/.test(textBefore)) {
-      return 'declaration';
-    } else {
-      return 'keyword';
-    }
-  }
-
-  extractFunctions(content) {
-    // Simplified function extraction
-    const functions = [];
-    const functionRegex = /function\s+(\w+)\s*\(([^)]*)\)/g;
-    let match;
-    
-    while ((match = functionRegex.exec(content)) !== null) {
-      functions.push({
-        name: match[1],
-        parameters: match[2],
-        signature: `${match[1]}(${match[2]})`,
-        documentation: ''
-      });
-    }
-    
-    return functions;
-  }
-
-  extractVariables(content, scope) {
-    // Simplified variable extraction
-    const variables = [];
-    const variableRegex = /(\w+)\s+(\w+);/g;
-    let match;
-    
-    while ((match = variableRegex.exec(content)) !== null) {
-      variables.push({
-        type: match[1],
-        name: match[2]
-      });
-    }
-    
-    return variables;
-  }
-
-  inferObjectType(content, objectName) {
-    // Simplified type inference
-    return 'address';
-  }
-
-  getTypeMembers(type) {
-    const typeMembers = {
-      address: [
-        { name: 'balance', kind: 'property', detail: 'uint256', insertText: 'balance' },
-        { name: 'call', kind: 'method', detail: 'function call(bytes)', insertText: 'call()' },
-        { name: 'transfer', kind: 'method', detail: 'function transfer(uint256)', insertText: 'transfer()' }
-      ],
-      array: [
-        { name: 'length', kind: 'property', detail: 'uint256', insertText: 'length' },
-        { name: 'push', kind: 'method', detail: 'function push()', insertText: 'push()' },
-        { name: 'pop', kind: 'method', detail: 'function pop()', insertText: 'pop()' }
-      ]
-    };
-    
-    return typeMembers[type] || [];
-  }
-
-  getImportCompletions(context) {
+  getPragmaCompletions() {
     return [
-      { label: '@openzeppelin/contracts/', kind: 'module', insertText: '@openzeppelin/contracts/' },
-      { label: 'hardhat/', kind: 'module', insertText: 'hardhat/' },
-      { label: './interfaces/', kind: 'module', insertText: './interfaces/' }
+      { label: 'solidity ^0.8.0;', kind: 'snippet', detail: 'Solidity version pragma' },
+      { label: 'solidity >=0.8.0 <0.9.0;', kind: 'snippet', detail: 'Solidity version range' },
+      { label: 'experimental ABIEncoderV2;', kind: 'snippet', detail: 'Enable ABI encoder v2' }
     ];
   }
 
-  getPragmaCompletions(context) {
+  /**
+   * Get import completions
+   * @returns {Array} Import suggestions
+   */
+  getImportCompletions() {
     return [
-      { label: 'solidity', kind: 'keyword', insertText: 'solidity ^0.8.0;' },
-      { label: 'experimental', kind: 'keyword', insertText: 'experimental ABIEncoderV2;' }
+      { label: '"./Contract.sol";', kind: 'snippet', detail: 'Import local contract' },
+      { label: '"@openzeppelin/contracts/token/ERC20/ERC20.sol";', kind: 'snippet', detail: 'Import OpenZeppelin ERC20' },
+      { label: '"@openzeppelin/contracts/access/Ownable.sol";', kind: 'snippet', detail: 'Import OpenZeppelin Ownable' },
+      { label: '"@openzeppelin/contracts/security/ReentrancyGuard.sol";', kind: 'snippet', detail: 'Import ReentrancyGuard' }
     ];
   }
 
-  generateCacheKey(content, position, context) {
-    const contentHash = require('crypto').createHash('md5').update(content).digest('hex').substring(0, 8);
-    return `${contentHash}_${position.line}_${position.column}_${context.type}`;
+  /**
+   * Get type completions
+   * @returns {Array} Type suggestions
+   */
+  getTypeCompletions() {
+    return this.solidityKeywords.types.map(type => ({
+      label: type,
+      kind: 'keyword',
+      detail: `Solidity type: ${type}`
+    }));
+  }
+
+  /**
+   * Get declaration completions
+   * @param {string} textBefore - Text before cursor
+   * @returns {Array} Declaration suggestions
+   */
+  getDeclarationCompletions(textBefore) {
+    const suggestions = [];
+
+    if (textBefore.includes('function')) {
+      suggestions.push(
+        { label: 'public', kind: 'keyword', detail: 'Public visibility' },
+        { label: 'private', kind: 'keyword', detail: 'Private visibility' },
+        { label: 'internal', kind: 'keyword', detail: 'Internal visibility' },
+        { label: 'external', kind: 'keyword', detail: 'External visibility' },
+        { label: 'pure', kind: 'keyword', detail: 'Pure function' },
+        { label: 'view', kind: 'keyword', detail: 'View function' },
+        { label: 'payable', kind: 'keyword', detail: 'Payable function' }
+      );
+    }
+
+    return suggestions;
+  }
+
+  /**
+   * Get keyword completions
+   * @param {string} prefix - Partial word
+   * @returns {Array} Keyword suggestions
+   */
+  getKeywordCompletions(prefix) {
+    const allKeywords = [
+      ...this.solidityKeywords.keywords,
+      ...this.solidityKeywords.types,
+      ...this.solidityKeywords.globalVariables,
+      ...this.solidityKeywords.functions
+    ];
+
+    return allKeywords
+      .filter(keyword => keyword.toLowerCase().startsWith(prefix.toLowerCase()))
+      .map(keyword => ({
+        label: keyword,
+        kind: 'keyword',
+        detail: `Solidity keyword: ${keyword}`
+      }));
+  }
+
+  /**
+   * Get identifier completions from current code
+   * @param {string} content - Code content
+   * @param {string} prefix - Partial identifier
+   * @returns {Array} Identifier suggestions
+   */
+  getIdentifierCompletions(content, prefix) {
+    const suggestions = [];
+    
+    // Extract function names
+    const functionMatches = content.match(/function\s+(\w+)/g);
+    if (functionMatches) {
+      functionMatches.forEach(match => {
+        const funcName = match.replace('function ', '');
+        if (funcName.toLowerCase().startsWith(prefix.toLowerCase())) {
+          suggestions.push({
+            label: funcName,
+            kind: 'function',
+            detail: 'User-defined function'
+          });
+        }
+      });
+    }
+
+    // Extract variable names
+    const variableMatches = content.match(/\b(uint\d*|int\d*|bool|address|string|bytes\d*)\s+(\w+)/g);
+    if (variableMatches) {
+      variableMatches.forEach(match => {
+        const parts = match.split(/\s+/);
+        const varName = parts[1];
+        if (varName.toLowerCase().startsWith(prefix.toLowerCase())) {
+          suggestions.push({
+            label: varName,
+            kind: 'variable',
+            detail: `Variable: ${parts[0]} ${varName}`
+          });
+        }
+      });
+    }
+
+    return suggestions;
+  }
+
+  /**
+   * Get general completions
+   * @param {string} prefix - Partial word
+   * @returns {Array} General suggestions
+   */
+  getGeneralCompletions(prefix) {
+    const suggestions = [];
+
+    // Common Solidity snippets
+    const snippets = [
+      {
+        label: 'contract',
+        kind: 'snippet',
+        detail: 'Contract template',
+        insertText: 'contract ${1:ContractName} {\n    ${2}\n}'
+      },
+      {
+        label: 'function',
+        kind: 'snippet',
+        detail: 'Function template',
+        insertText: 'function ${1:functionName}(${2}) ${3:public} ${4:returns (${5})} {\n    ${6}\n}'
+      },
+      {
+        label: 'modifier',
+        kind: 'snippet',
+        detail: 'Modifier template',
+        insertText: 'modifier ${1:modifierName}(${2}) {\n    ${3};\n    _;\n}'
+      },
+      {
+        label: 'require',
+        kind: 'snippet',
+        detail: 'Require statement',
+        insertText: 'require(${1:condition}, "${2:error message}");'
+      }
+    ];
+
+    if (!prefix || snippets.some(s => s.label.startsWith(prefix))) {
+      suggestions.push(...snippets.filter(s => !prefix || s.label.startsWith(prefix)));
+    }
+
+    return suggestions;
+  }
+
+  /**
+   * Check if a variable is of address type
+   * @param {string} varName - Variable name
+   * @param {string} content - Code content
+   * @returns {boolean} True if variable is address type
+   */
+  isAddressVariable(varName, content) {
+    const regex = new RegExp(`\\baddress\\s+\\w*\\b${varName}\\b`);
+    return regex.test(content);
+  }
+
+  /**
+   * Generate cache key for context
+   * @param {Object} context - Context object
+   * @returns {string} Cache key
+   */
+  generateCacheKey(context) {
+    return `${context.type}:${context.prefix}:${context.textBefore.slice(-20)}`;
   }
 
   /**
@@ -603,23 +441,127 @@ class CodeCompletionEngine {
    */
   clearCache() {
     this.completionCache.clear();
-    this.contextCache.clear();
+    logger.info('Code completion cache cleared');
   }
 
   /**
-   * Get completion statistics
-   * @returns {Object} Statistics
+   * Get service statistics
+   * @returns {Object} Service statistics
    */
   getStats() {
     return {
+      ...this.stats,
       cacheSize: this.completionCache.size,
-      contextCacheSize: this.contextCache.size,
-      keywordCount: this.solidityKeywords.length,
-      typeCount: this.solidityTypes.length,
-      builtinCount: this.solidityBuiltins.length,
-      patternCount: this.commonPatterns.length
+      cacheHitRate: this.stats.totalRequests > 0 ? 
+        (this.stats.cacheHits / this.stats.totalRequests * 100).toFixed(2) + '%' : '0%'
     };
+  }
+
+  /**
+   * Get completion suggestions for specific context types
+   * @param {string} contextType - Type of context
+   * @param {Object} options - Additional options
+   * @returns {Array} Context-specific suggestions
+   */
+  getContextSpecificCompletions(contextType, options = {}) {
+    switch (contextType) {
+      case 'security':
+        return [
+          { label: 'nonReentrant', kind: 'modifier', detail: 'ReentrancyGuard modifier' },
+          { label: 'onlyOwner', kind: 'modifier', detail: 'Ownable modifier' },
+          { label: 'whenNotPaused', kind: 'modifier', detail: 'Pausable modifier' }
+        ];
+
+      case 'erc20':
+        return [
+          { label: 'totalSupply', kind: 'function', detail: 'ERC20 total supply' },
+          { label: 'balanceOf', kind: 'function', detail: 'ERC20 balance query' },
+          { label: 'transfer', kind: 'function', detail: 'ERC20 transfer' },
+          { label: 'approve', kind: 'function', detail: 'ERC20 approve' },
+          { label: 'transferFrom', kind: 'function', detail: 'ERC20 transfer from' }
+        ];
+
+      case 'events':
+        return [
+          { label: 'Transfer', kind: 'event', detail: 'Transfer event' },
+          { label: 'Approval', kind: 'event', detail: 'Approval event' },
+          { label: 'OwnershipTransferred', kind: 'event', detail: 'Ownership transfer event' }
+        ];
+
+      default:
+        return [];
+    }
+  }
+
+  /**
+   * Cleanup service resources
+   */
+  cleanup() {
+    this.clearCache();
+    this.stats = {
+      totalRequests: 0,
+      cacheHits: 0,
+      averageResponseTime: 0
+    };
+    
+    logger.info('Code completion engine cleaned up');
   }
 }
 
-module.exports = new CodeCompletionEngine();
+const codeCompletionEngineInstance = new CodeCompletionEngine();
+
+// Export the service instance
+module.exports = codeCompletionEngineInstance;
+
+// Export the class for testing
+module.exports.CodeCompletionEngine = CodeCompletionEngine;
+
+// Export individual methods for direct access
+module.exports.getCompletions = codeCompletionEngineInstance.getCompletions.bind(codeCompletionEngineInstance);
+module.exports.getContextSpecificCompletions = codeCompletionEngineInstance.getContextSpecificCompletions.bind(codeCompletionEngineInstance);
+module.exports.clearCache = codeCompletionEngineInstance.clearCache.bind(codeCompletionEngineInstance);
+module.exports.getStats = codeCompletionEngineInstance.getStats.bind(codeCompletionEngineInstance);
+module.exports.cleanup = codeCompletionEngineInstance.cleanup.bind(codeCompletionEngineInstance);
+
+// Export initialization method
+module.exports.initialize = async function(options = {}) {
+  try {
+    // Initialize code completion engine with configuration
+    if (options.customKeywords) {
+      // Add custom keywords to existing ones
+      Object.keys(options.customKeywords).forEach(category => {
+        if (codeCompletionEngineInstance.solidityKeywords[category]) {
+          codeCompletionEngineInstance.solidityKeywords[category].push(...options.customKeywords[category]);
+        }
+      });
+    }
+    
+    if (options.cacheSize) {
+      // Clear existing cache if size limit specified
+      codeCompletionEngineInstance.clearCache();
+    }
+    
+    logger.info('CodeCompletionEngine initialized successfully', {
+      keywordCategories: Object.keys(codeCompletionEngineInstance.solidityKeywords).length,
+      totalKeywords: Object.values(codeCompletionEngineInstance.solidityKeywords).flat().length,
+      cacheEnabled: true
+    });
+    
+    return true;
+  } catch (error) {
+    logger.error('Failed to initialize CodeCompletionEngine', { error: error.message });
+    throw error;
+  }
+};
+
+// Export service status method
+module.exports.getStatus = function() {
+  const stats = codeCompletionEngineInstance.getStats();
+  return {
+    initialized: true,
+    stats,
+    keywordCategories: Object.keys(codeCompletionEngineInstance.solidityKeywords).length,
+    totalKeywords: Object.values(codeCompletionEngineInstance.solidityKeywords).flat().length,
+    supportedFeatures: ['code-completion', 'context-aware', 'snippets', 'member-access', 'caching']
+  };
+};

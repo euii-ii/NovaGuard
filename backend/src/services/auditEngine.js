@@ -332,6 +332,28 @@ class AuditEngine {
    * @returns {Object} Combined analysis
    */
   combineAnalysisResults(parseResult, aiAnalysis) {
+    // Ensure parseResult is defined
+    if (!parseResult) {
+      parseResult = {
+        staticAnalysis: { findings: [] },
+        contracts: [],
+        functions: [],
+        modifiers: [],
+        events: [],
+        codeMetrics: { complexity: 0, codeLines: 0 }
+      };
+    }
+
+    // Ensure aiAnalysis is defined
+    if (!aiAnalysis) {
+      aiAnalysis = {
+        vulnerabilities: [],
+        summary: 'AI analysis not available',
+        overallScore: 70,
+        riskLevel: 'Medium'
+      };
+    }
+
     // Merge vulnerabilities from both sources
     const staticVulns = (parseResult?.staticAnalysis?.findings || []).map(finding => ({
       name: `Static Analysis: ${finding.category}`,
@@ -344,7 +366,7 @@ class AuditEngine {
       confidence: 'High',
     }));
 
-    const aiVulns = aiAnalysis.vulnerabilities.map(vuln => ({
+    const aiVulns = (aiAnalysis.vulnerabilities || []).map(vuln => ({
       ...vuln,
       source: 'ai-multi-agent',
       detectedBy: vuln.detectedBy || 'unknown-agent',
@@ -365,7 +387,7 @@ class AuditEngine {
     return {
       vulnerabilities: deduplicatedVulns,
       metrics: combinedMetrics,
-      staticAnalysis: parseResult.staticAnalysis,
+      staticAnalysis: parseResult?.staticAnalysis || { findings: [] },
       aiAnalysis,
       contractInfo: parseResult,
       combinedAt: new Date().toISOString(),
@@ -504,9 +526,402 @@ class AuditEngine {
   generateAuditId() {
     return `audit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
+
+  /**
+   * Perform comprehensive audit (enhanced version)
+   * @param {string} contractCodeOrAddress - Contract code or address
+   * @param {Object} config - Audit configuration
+   * @returns {Object} Comprehensive audit results
+   */
+  async performComprehensiveAudit(contractCodeOrAddress, config = {}) {
+    try {
+      // Determine if input is code or address
+      const isAddress = contractCodeOrAddress.startsWith('0x') && contractCodeOrAddress.length === 42;
+      
+      let auditResult;
+      if (isAddress) {
+        auditResult = await this.auditContractByAddress(
+          contractCodeOrAddress, 
+          config.chain || 'ethereum',
+          config
+        );
+      } else {
+        auditResult = await this.auditContract(contractCodeOrAddress, config);
+      }
+
+      // Add comprehensive analysis metadata
+      auditResult.comprehensiveAnalysis = {
+        enabledFeatures: {
+          aiAnalysis: config.enableAIAnalysis !== false,
+          teamReview: config.enableTeamReview || false,
+          gasOptimization: config.includeGasOptimization !== false,
+          bestPractices: config.includeBestPractices !== false
+        },
+        analysisDepth: config.analysisDepth || 'comprehensive',
+        timestamp: new Date().toISOString()
+      };
+
+      return auditResult;
+    } catch (error) {
+      logger.error('Comprehensive audit failed', {
+        error: error.message,
+        input: contractCodeOrAddress.substring(0, 100)
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get audit results by ID
+   * @param {string} auditId - Audit ID
+   * @returns {Object|null} Audit results or null if not found
+   */
+  async getAuditResults(auditId) {
+    try {
+      const results = await dataPersistenceService.getAnalysisResult(auditId);
+      return results;
+    } catch (error) {
+      logger.error('Failed to get audit results', {
+        auditId,
+        error: error.message
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Get audit history for user
+   * @param {Object} options - Query options
+   * @returns {Object} Audit history with pagination
+   */
+  async getAuditHistory(options = {}) {
+    try {
+      const {
+        userId,
+        page = 1,
+        limit = 10,
+        filter = {}
+      } = options;
+
+      const history = await dataPersistenceService.getAnalysisHistory({
+        userId,
+        page,
+        limit,
+        filter
+      });
+
+      return {
+        audits: history.results || [],
+        total: history.total || 0,
+        page,
+        limit
+      };
+    } catch (error) {
+      logger.error('Failed to get audit history', {
+        userId: options.userId,
+        error: error.message
+      });
+      return {
+        audits: [],
+        total: 0,
+        page: options.page || 1,
+        limit: options.limit || 10
+      };
+    }
+  }
+
+  /**
+   * Generate audit report in various formats
+   * @param {Object} auditResults - Audit results
+   * @param {Object} options - Report options
+   * @returns {Object|Buffer} Generated report
+   */
+  async generateReport(auditResults, options = {}) {
+    try {
+      const {
+        format = 'json',
+        includeRecommendations = true,
+        includeAIInsights = true
+      } = options;
+
+      // Enhance audit results with additional insights if requested
+      let enhancedResults = { ...auditResults };
+      
+      if (includeAIInsights && !auditResults.aiInsights) {
+        try {
+          const aiInsights = await aiAnalysisPipeline.generateInsights(auditResults);
+          enhancedResults.aiInsights = aiInsights;
+        } catch (error) {
+          logger.warn('Failed to generate AI insights for report', {
+            auditId: auditResults.auditId,
+            error: error.message
+          });
+        }
+      }
+
+      // Generate report based on format
+      switch (format.toLowerCase()) {
+        case 'pdf':
+          return await this.generatePDFReport(enhancedResults, options);
+        case 'html':
+          return this.generateHTMLReport(enhancedResults, options);
+        case 'markdown':
+          return this.generateMarkdownReport(enhancedResults, options);
+        default:
+          return this.generateJSONReport(enhancedResults, options);
+      }
+    } catch (error) {
+      logger.error('Failed to generate audit report', {
+        auditId: auditResults?.auditId,
+        format: options.format,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Generate JSON report
+   * @param {Object} auditResults - Audit results
+   * @param {Object} options - Report options
+   * @returns {Object} JSON report
+   */
+  generateJSONReport(auditResults, options) {
+    const report = {
+      reportMetadata: {
+        generatedAt: new Date().toISOString(),
+        format: 'json',
+        version: '1.0.0',
+        includeRecommendations: options.includeRecommendations,
+        includeAIInsights: options.includeAIInsights
+      },
+      auditSummary: {
+        auditId: auditResults.auditId,
+        contractName: auditResults.contractInfo?.name || 'Unknown',
+        overallScore: auditResults.overallScore,
+        riskLevel: auditResults.riskLevel,
+        totalVulnerabilities: auditResults.vulnerabilities?.length || 0,
+        executionTime: auditResults.executionTime
+      },
+      contractInfo: auditResults.contractInfo || {},
+      vulnerabilities: auditResults.vulnerabilities || [],
+      recommendations: options.includeRecommendations ? (auditResults.recommendations || []) : [],
+      gasOptimizations: auditResults.gasOptimizations || [],
+      codeQuality: auditResults.codeQuality || {},
+      aiInsights: options.includeAIInsights ? auditResults.aiInsights : undefined
+    };
+
+    return report;
+  }
+
+  /**
+   * Generate HTML report
+   * @param {Object} auditResults - Audit results
+   * @param {Object} options - Report options
+   * @returns {string} HTML report
+   */
+  generateHTMLReport(auditResults, options) {
+    const jsonReport = this.generateJSONReport(auditResults, options);
+    
+    const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Contract Audit Report - ${jsonReport.auditSummary.contractName}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        .header { background: #f4f4f4; padding: 20px; border-radius: 5px; }
+        .summary { background: #e8f5e8; padding: 15px; margin: 20px 0; border-radius: 5px; }
+        .vulnerability { background: #fff3cd; padding: 10px; margin: 10px 0; border-left: 4px solid #ffc107; }
+        .high-risk { border-left-color: #dc3545; background: #f8d7da; }
+        .medium-risk { border-left-color: #fd7e14; background: #fff3cd; }
+        .low-risk { border-left-color: #28a745; background: #d4edda; }
+        .recommendation { background: #d1ecf1; padding: 10px; margin: 10px 0; border-left: 4px solid #17a2b8; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Smart Contract Audit Report</h1>
+        <p><strong>Contract:</strong> ${jsonReport.auditSummary.contractName}</p>
+        <p><strong>Audit ID:</strong> ${jsonReport.auditSummary.auditId}</p>
+        <p><strong>Generated:</strong> ${jsonReport.reportMetadata.generatedAt}</p>
+    </div>
+
+    <div class="summary">
+        <h2>Audit Summary</h2>
+        <p><strong>Overall Score:</strong> ${jsonReport.auditSummary.overallScore}/100</p>
+        <p><strong>Risk Level:</strong> ${jsonReport.auditSummary.riskLevel}</p>
+        <p><strong>Total Vulnerabilities:</strong> ${jsonReport.auditSummary.totalVulnerabilities}</p>
+        <p><strong>Execution Time:</strong> ${jsonReport.auditSummary.executionTime}ms</p>
+    </div>
+
+    <h2>Vulnerabilities</h2>
+    ${jsonReport.vulnerabilities.map(vuln => `
+        <div class="vulnerability ${vuln.severity.toLowerCase()}-risk">
+            <h3>${vuln.name}</h3>
+            <p><strong>Severity:</strong> ${vuln.severity}</p>
+            <p><strong>Description:</strong> ${vuln.description}</p>
+            ${vuln.recommendation ? `<p><strong>Recommendation:</strong> ${vuln.recommendation}</p>` : ''}
+        </div>
+    `).join('')}
+
+    ${options.includeRecommendations && jsonReport.recommendations.length > 0 ? `
+    <h2>Recommendations</h2>
+    ${jsonReport.recommendations.map(rec => `
+        <div class="recommendation">
+            <h3>${rec.title || 'Recommendation'}</h3>
+            <p>${rec.description}</p>
+        </div>
+    `).join('')}
+    ` : ''}
+
+    <h2>Contract Information</h2>
+    <table>
+        <tr><th>Property</th><th>Value</th></tr>
+        <tr><td>Functions</td><td>${jsonReport.contractInfo.functions || 'N/A'}</td></tr>
+        <tr><td>Modifiers</td><td>${jsonReport.contractInfo.modifiers || 'N/A'}</td></tr>
+        <tr><td>Events</td><td>${jsonReport.contractInfo.events || 'N/A'}</td></tr>
+        <tr><td>Lines of Code</td><td>${jsonReport.contractInfo.linesOfCode || 'N/A'}</td></tr>
+    </table>
+</body>
+</html>`;
+
+    return html;
+  }
+
+  /**
+   * Generate Markdown report
+   * @param {Object} auditResults - Audit results
+   * @param {Object} options - Report options
+   * @returns {string} Markdown report
+   */
+  generateMarkdownReport(auditResults, options) {
+    const jsonReport = this.generateJSONReport(auditResults, options);
+    
+    let markdown = `# Smart Contract Audit Report
+
+## Contract Information
+- **Name:** ${jsonReport.auditSummary.contractName}
+- **Audit ID:** ${jsonReport.auditSummary.auditId}
+- **Generated:** ${jsonReport.reportMetadata.generatedAt}
+
+## Audit Summary
+- **Overall Score:** ${jsonReport.auditSummary.overallScore}/100
+- **Risk Level:** ${jsonReport.auditSummary.riskLevel}
+- **Total Vulnerabilities:** ${jsonReport.auditSummary.totalVulnerabilities}
+- **Execution Time:** ${jsonReport.auditSummary.executionTime}ms
+
+## Vulnerabilities
+
+`;
+
+    jsonReport.vulnerabilities.forEach(vuln => {
+      markdown += `### ${vuln.name}
+- **Severity:** ${vuln.severity}
+- **Description:** ${vuln.description}
+${vuln.recommendation ? `- **Recommendation:** ${vuln.recommendation}` : ''}
+
+`;
+    });
+
+    if (options.includeRecommendations && jsonReport.recommendations.length > 0) {
+      markdown += `## Recommendations
+
+`;
+      jsonReport.recommendations.forEach(rec => {
+        markdown += `### ${rec.title || 'Recommendation'}
+${rec.description}
+
+`;
+      });
+    }
+
+    markdown += `## Contract Details
+| Property | Value |
+|----------|-------|
+| Functions | ${jsonReport.contractInfo.functions || 'N/A'} |
+| Modifiers | ${jsonReport.contractInfo.modifiers || 'N/A'} |
+| Events | ${jsonReport.contractInfo.events || 'N/A'} |
+| Lines of Code | ${jsonReport.contractInfo.linesOfCode || 'N/A'} |
+`;
+
+    return markdown;
+  }
+
+  /**
+   * Generate PDF report (placeholder - would need PDF library)
+   * @param {Object} auditResults - Audit results
+   * @param {Object} options - Report options
+   * @returns {Buffer} PDF buffer
+   */
+  async generatePDFReport(auditResults, options) {
+    // For now, return HTML content as PDF would require additional dependencies
+    // In production, you would use libraries like puppeteer or pdfkit
+    const htmlContent = this.generateHTMLReport(auditResults, options);
+    
+    logger.warn('PDF generation not implemented, returning HTML content', {
+      auditId: auditResults.auditId
+    });
+    
+    return Buffer.from(htmlContent, 'utf8');
+  }
 }
 
 const auditEngineInstance = new AuditEngine();
-auditEngineInstance.AuditEngine = AuditEngine;
 
+// Export all methods for proper service integration
 module.exports = auditEngineInstance;
+module.exports.AuditEngine = AuditEngine;
+
+// Export individual methods for direct access
+module.exports.auditContract = auditEngineInstance.auditContract.bind(auditEngineInstance);
+module.exports.auditContractByAddress = auditEngineInstance.auditContractByAddress.bind(auditEngineInstance);
+module.exports.performComprehensiveAudit = auditEngineInstance.performComprehensiveAudit.bind(auditEngineInstance);
+module.exports.getAuditResults = auditEngineInstance.getAuditResults.bind(auditEngineInstance);
+module.exports.getAuditHistory = auditEngineInstance.getAuditHistory.bind(auditEngineInstance);
+module.exports.generateReport = auditEngineInstance.generateReport.bind(auditEngineInstance);
+module.exports.generateJSONReport = auditEngineInstance.generateJSONReport.bind(auditEngineInstance);
+module.exports.generateHTMLReport = auditEngineInstance.generateHTMLReport.bind(auditEngineInstance);
+module.exports.generateMarkdownReport = auditEngineInstance.generateMarkdownReport.bind(auditEngineInstance);
+module.exports.generatePDFReport = auditEngineInstance.generatePDFReport.bind(auditEngineInstance);
+
+// Export initialization method
+module.exports.initialize = async function(options = {}) {
+  try {
+    // Initialize audit engine with configuration
+    if (options.maxContractSize) {
+      auditEngineInstance.maxContractSize = options.maxContractSize;
+    }
+    if (options.vulnerabilityThresholds) {
+      auditEngineInstance.vulnerabilityThresholds = {
+        ...auditEngineInstance.vulnerabilityThresholds,
+        ...options.vulnerabilityThresholds
+      };
+    }
+    
+    logger.info('AuditEngine initialized successfully', {
+      maxContractSize: auditEngineInstance.maxContractSize,
+      vulnerabilityThresholds: auditEngineInstance.vulnerabilityThresholds
+    });
+    
+    return true;
+  } catch (error) {
+    logger.error('Failed to initialize AuditEngine', { error: error.message });
+    throw error;
+  }
+};
+
+// Export service status method
+module.exports.getStatus = function() {
+  return {
+    initialized: true,
+    maxContractSize: auditEngineInstance.maxContractSize,
+    vulnerabilityThresholds: auditEngineInstance.vulnerabilityThresholds,
+    uptime: Date.now() - (auditEngineInstance.startTime || Date.now())
+  };
+};

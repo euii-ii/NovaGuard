@@ -89,16 +89,29 @@ class AIResultAggregationService {
    * @returns {Object} Aggregated and scored results
    */
   async aggregateResults(agentResults, options = {}) {
+    // Validate input parameters
+    if (!Array.isArray(agentResults)) {
+      throw new Error('Agent results must be an array');
+    }
+
+    if (agentResults.length === 0) {
+      throw new Error('No agent results provided for aggregation');
+    }
+
     try {
       logger.info('Starting AI result aggregation', {
         totalAgents: agentResults.length,
-        successfulAgents: agentResults.filter(r => r.success).length
+        successfulAgents: agentResults.filter(r => r && r.success).length
       });
 
-      const successfulResults = agentResults.filter(result => result.success);
-      
+      // Filter and validate successful results
+      const successfulResults = agentResults
+        .filter(result => result && typeof result === 'object' && result.success)
+        .filter(result => result.analysis && typeof result.analysis === 'object');
+
       if (successfulResults.length === 0) {
-        throw new Error('No successful agent results to aggregate');
+        logger.warn('No successful agent results to aggregate, returning default result');
+        return this.createDefaultAggregatedResult(agentResults);
       }
 
       // Extract and process vulnerabilities

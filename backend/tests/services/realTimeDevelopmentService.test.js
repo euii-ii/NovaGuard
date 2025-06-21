@@ -28,6 +28,26 @@ describe('Real-Time Development Service', () => {
     syntaxValidationStub = sinon.stub(syntaxValidationService, 'validateSyntax');
     codeCompletionStub = sinon.stub(codeCompletionEngine, 'getCompletions');
 
+    // Stub session management methods
+    sinon.stub(instantFeedbackService, 'startFeedbackSession').returns('feedback-session-123');
+    sinon.stub(instantFeedbackService, 'endFeedbackSession').returns(true);
+    sinon.stub(liveVulnerabilityDetector, 'startDetectionSession').returns('detection-session-123');
+    sinon.stub(liveVulnerabilityDetector, 'endDetectionSession').returns(true);
+    
+    // Stub status methods - only if they exist
+    if (typeof instantFeedbackService.getStatus === 'function') {
+      sinon.stub(instantFeedbackService, 'getStatus').returns({ status: 'active' });
+    }
+    if (typeof liveVulnerabilityDetector.getStatus === 'function') {
+      sinon.stub(liveVulnerabilityDetector, 'getStatus').returns({ status: 'active' });
+    }
+    if (typeof codeCompletionEngine.getStats === 'function') {
+      sinon.stub(codeCompletionEngine, 'getStats').returns({ completions: 0 });
+    }
+    if (typeof syntaxValidationService.getStats === 'function') {
+      sinon.stub(syntaxValidationService, 'getStats').returns({ validations: 0 });
+    }
+
     // Configure default stub responses
     syntaxValidationStub.resolves({
       isValid: false,
@@ -64,6 +84,10 @@ describe('Real-Time Development Service', () => {
   });
 
   afterEach(() => {
+    // Clean up the service to prevent open handles
+    if (typeof realTimeDevelopmentService.cleanup === 'function') {
+      realTimeDevelopmentService.cleanup();
+    }
     sinon.restore();
   });
 
@@ -112,10 +136,6 @@ describe('Real-Time Development Service', () => {
         enableLiveVulnerabilityDetection: true,
         alertLevel: 'medium'
       };
-
-      // Mock sub-service session creation
-      sinon.stub(instantFeedbackService, 'startFeedbackSession').returns('feedback-session-123');
-      sinon.stub(liveVulnerabilityDetector, 'startDetectionSession').returns('detection-session-123');
 
       const sessionInfo = realTimeDevelopmentService.startDevelopmentSession(userId, sessionConfig);
 
@@ -280,7 +300,6 @@ describe('Real-Time Development Service', () => {
       const userId = 'test-user-123';
       
       // Start session
-      sinon.stub(instantFeedbackService, 'startFeedbackSession').returns('feedback-session-123');
       realTimeDevelopmentService.startDevelopmentSession(userId);
 
       // Update preferences
@@ -367,10 +386,21 @@ describe('Real-Time Development Service', () => {
     });
 
     it('should handle instant feedback service errors', async () => {
+      // Initialize service with instant feedback enabled
+      await realTimeDevelopmentService.initialize({
+        enableInstantFeedback: true,
+        enableLiveVulnerabilityDetection: false
+      });
+
+      // Start a session to get feedback session ID
+      const userId = 'test-user-123';
+      realTimeDevelopmentService.startDevelopmentSession(userId);
+
+      // Configure stub to reject
       instantFeedbackStub.rejects(new Error('Instant feedback service unavailable'));
 
       const changeData = {
-        userId: 'test-user-123',
+        userId,
         filePath: 'contracts/Token.sol',
         content: mockContracts.simple,
         cursorPosition: { line: 1, column: 1 }
@@ -384,10 +414,21 @@ describe('Real-Time Development Service', () => {
     });
 
     it('should handle vulnerability detection errors', async () => {
+      // Initialize service with vulnerability detection enabled
+      await realTimeDevelopmentService.initialize({
+        enableInstantFeedback: false,
+        enableLiveVulnerabilityDetection: true
+      });
+
+      // Start a session to get detection session ID
+      const userId = 'test-user-123';
+      realTimeDevelopmentService.startDevelopmentSession(userId);
+
+      // Configure stub to reject
       vulnerabilityDetectorStub.rejects(new Error('Vulnerability detection failed'));
 
       const changeData = {
-        userId: 'test-user-123',
+        userId,
         filePath: 'contracts/Token.sol',
         content: mockContracts.vulnerable,
         cursorPosition: { line: 1, column: 1 }
