@@ -30,6 +30,7 @@ const enhancedAuditRoutes = require('./controllers/enhancedAuditController');
 const chainIDERoutes = require('./controllers/chainIDEController');
 const realTimeDevelopmentRoutes = require('./controllers/realTimeDevelopmentController');
 const collaborativeToolsRoutes = require('./controllers/collaborativeToolsController');
+const pitchRoutes = require('./controllers/pitchController');
 
 // Initialize Express app
 const app = express();
@@ -235,6 +236,7 @@ app.use('/api/v1/auth', enhancedAuditRoutes);
 app.use('/api/v1/chainide', chainIDERoutes);
 app.use('/api/v1/realtime', realTimeDevelopmentRoutes);
 app.use('/api/v1/collaboration', collaborativeToolsRoutes);
+app.use('/api/pitch', pitchRoutes);
 
 // Analytics endpoint
 app.get('/api/v1/analytics/dashboard',
@@ -321,31 +323,34 @@ app.use('*', (req, res) => {
     error: 'Endpoint not found',
     message: `The requested endpoint ${req.originalUrl} does not exist`,
     availableEndpoints: [
-      'GET /health',
-      'POST /api/audit/contract',
-      'POST /api/audit/address',
-      'GET /api/audit/history',
-      'POST /api/v1/contracts/analyze',
-      'POST /api/v1/contracts/analyze-address',
-      'POST /api/v1/ai/multi-agent-analysis',
-      'POST /api/v1/defi/analyze',
-      'GET /api/v1/chains/supported',
-      'GET /api/v1/agents/available',
-      'GET /api/v1/analytics/dashboard',
-      'POST /api/v1/chainide/workspaces',
-      'POST /api/v1/chainide/code/analyze',
-      'GET /api/v1/chainide/capabilities',
-      'GET /api/v1/chainide/sdk',
-      'POST /api/v1/realtime/code/analyze',
-      'POST /api/v1/realtime/completion',
-      'POST /api/v1/realtime/validate',
-      'POST /api/v1/realtime/session/start',
-      'GET /api/v1/realtime/capabilities',
-      'POST /api/v1/collaboration/teams',
-      'POST /api/v1/collaboration/teams/:teamId/analysis',
-      'POST /api/v1/collaboration/realtime-reviews',
-      'GET /api/v1/collaboration/workspaces/:workspaceId/analytics',
-      'GET /api/v1/collaboration/capabilities'
+    'GET /health',
+    'POST /api/pitch/evaluate',
+    'GET /api/pitch/models',
+    'GET /api/pitch/health',
+    'POST /api/audit/contract',
+    'POST /api/audit/address',
+    'GET /api/audit/history',
+    'POST /api/v1/contracts/analyze',
+    'POST /api/v1/contracts/analyze-address',
+    'POST /api/v1/ai/multi-agent-analysis',
+    'POST /api/v1/defi/analyze',
+    'GET /api/v1/chains/supported',
+    'GET /api/v1/agents/available',
+    'GET /api/v1/analytics/dashboard',
+    'POST /api/v1/chainide/workspaces',
+    'POST /api/v1/chainide/code/analyze',
+    'GET /api/v1/chainide/capabilities',
+    'GET /api/v1/chainide/sdk',
+    'POST /api/v1/realtime/code/analyze',
+    'POST /api/v1/realtime/completion',
+    'POST /api/v1/realtime/validate',
+    'POST /api/v1/realtime/session/start',
+    'GET /api/v1/realtime/capabilities',
+    'POST /api/v1/collaboration/teams',
+    'POST /api/v1/collaboration/teams/:teamId/analysis',
+    'POST /api/v1/collaboration/realtime-reviews',
+    'GET /api/v1/collaboration/workspaces/:workspaceId/analytics',
+    'GET /api/v1/collaboration/capabilities'
     ],
   });
 });

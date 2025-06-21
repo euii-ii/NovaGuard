@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { SignedIn, SignedOut, RedirectToSignIn, UserButton } from '@clerk/clerk-react';
 import './App.css';
+import './AppMain.css';
 
 // Import components
 import Dashboard from './components/Dashboard';
@@ -142,15 +144,22 @@ function App() {
   };
 
   return (
-    <Router>
-      <div className="app">
+    <div className="app">
+      <SignedOut>
+        <RedirectToSignIn />
+      </SignedOut>
+      
+      <SignedIn>
         <header className="app-header">
           <div className="header-content">
             <h1 className="app-title">
               🔒 Smart Contract Security Auditor
             </h1>
-            <div className="connection-status">
-              <BackendConnectionStatus compact={true} />
+            <div className="header-right">
+              <div className="connection-status">
+                <BackendConnectionStatus compact={true} />
+              </div>
+              <UserButton afterSignOutUrl="/" />
             </div>
           </div>
           <nav className="app-nav">
@@ -189,7 +198,14 @@ function App() {
             </div>
           )}
 
-          {renderCurrentView()}
+          <Routes>
+            <Route path="/" element={renderCurrentView()} />
+            <Route path="/dashboard" element={renderCurrentView()} />
+            <Route path="/analyzer" element={renderCurrentView()} />
+            <Route path="/results" element={renderCurrentView()} />
+            <Route path="/integration" element={renderCurrentView()} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </main>
 
         <footer className="app-footer">
@@ -208,8 +224,8 @@ function App() {
             </div>
           </div>
         </footer>
-      </div>
-    </Router>
+      </SignedIn>
+    </div>
   );
 }
 

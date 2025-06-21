@@ -4873,3 +4873,39 @@
 2025-06-21 14:20:51.258 [ERROR]: Failed to join workspace {"service":"smart-contract-auditor","environment":"test","workspaceId":"invalid-id","userId":"user-123","error":"Workspace not found"}
 2025-06-21 14:20:51.275 [ERROR]: Failed to join workspace {"service":"smart-contract-auditor","environment":"test","workspaceId":"ws_1750495851271_0uhwu4dkc","userId":"unauthorized-user","error":"User not authorized for this workspace"}
 2025-06-21 14:20:53.380 [ERROR]: OpenRouter API key not configured {"service":"smart-contract-auditor","environment":"test"}
+2025-06-21 16:56:26.892 [ERROR]: Unable to connect to database {"service":"smart-contract-auditor","environment":"development","error":"Maximum call stack size exceeded"}
+2025-06-21 17:15:02.497 [ERROR]: Unable to connect to database {"service":"smart-contract-auditor","environment":"development","error":"Maximum call stack size exceeded"}
+2025-06-21 18:23:57.701 [ERROR]: Failed to create workspace {"service":"smart-contract-auditor","environment":"test","error":"Workspace name and creator are required for validation"}
+2025-06-21 18:23:57.798 [ERROR]: Failed to delete workspace {"service":"smart-contract-auditor","environment":"test","workspaceId":"ws_1750510437777_y8b7wcxnc","userId":"unauthorized-user","error":"Only workspace owner can delete workspace"}
+2025-06-21 18:23:58.343 [ERROR]: Failed to join workspace {"service":"smart-contract-auditor","environment":"test","workspaceId":"invalid-id","userId":"user-123","error":"Workspace not found"}
+2025-06-21 18:23:58.376 [ERROR]: Failed to join workspace {"service":"smart-contract-auditor","environment":"test","workspaceId":"ws_1750510438372_gnetqka1r","userId":"unauthorized-user","error":"User not authorized for this workspace"}
+2025-06-21 18:24:02.594 [ERROR]: OpenRouter API key not configured {"service":"smart-contract-auditor","environment":"test"}
+2025-06-21 18:26:03.091 [ERROR]: Failed to create workspace {"service":"smart-contract-auditor","environment":"test","error":"Workspace name and creator are required for validation"}
+2025-06-21 18:26:03.135 [ERROR]: Failed to delete workspace {"service":"smart-contract-auditor","environment":"test","workspaceId":"ws_1750510563129_2ojmju0ke","userId":"unauthorized-user","error":"Only workspace owner can delete workspace"}
+2025-06-21 18:26:03.536 [ERROR]: Failed to join workspace {"service":"smart-contract-auditor","environment":"test","workspaceId":"invalid-id","userId":"user-123","error":"Workspace not found"}
+2025-06-21 18:26:03.553 [ERROR]: Failed to join workspace {"service":"smart-contract-auditor","environment":"test","workspaceId":"ws_1750510563548_4vo0hi317","userId":"unauthorized-user","error":"User not authorized for this workspace"}
+2025-06-21 18:26:08.974 [ERROR]: OpenRouter API key not configured {"service":"smart-contract-auditor","environment":"test"}
+2025-06-21 18:33:33.991 [ERROR]: Unable to connect to database {"service":"smart-contract-auditor","environment":"development","error":"Maximum call stack size exceeded"}
+2025-06-21 18:33:47.567 [ERROR]: Unable to connect to database {"service":"smart-contract-auditor","environment":"development","error":"Maximum call stack size exceeded"}
+2025-06-21 18:33:58.990 [ERROR]: Unable to connect to database {"service":"smart-contract-auditor","environment":"development","error":"Maximum call stack size exceeded"}
+2025-06-21 18:34:15.066 [ERROR]: Unable to connect to database {"service":"smart-contract-auditor","environment":"development","error":"Maximum call stack size exceeded"}
+2025-06-21 18:34:31.011 [ERROR]: Unable to connect to database {"service":"smart-contract-auditor","environment":"development","error":"Maximum call stack size exceeded"}
+2025-06-21 18:34:40.494 [ERROR]: Unable to connect to database {"service":"smart-contract-auditor","environment":"development","error":"Maximum call stack size exceeded"}
+2025-06-21 18:35:03.667 [ERROR]: Contract analysis failed {"service":"smart-contract-auditor","environment":"test","error":"Analysis service unavailable","userId":"test-user-123"}
+2025-06-21 18:35:03.951 [ERROR]: Contract verification failed {"service":"smart-contract-auditor","environment":"test","error":"Verification service unavailable","contractAddress":"0x1234567890123456789012345678901234567890"}
+2025-06-21 18:35:04.199 [ERROR]: Contract analysis failed {"service":"smart-contract-auditor","environment":"test","error":"Service temporarily unavailable","userId":"test-user-123"}
+2025-06-21 18:35:05.236 [ERROR]: OpenRouter API key not configured {"service":"smart-contract-auditor","environment":"test"}
+2025-06-21 18:35:36.260 [ERROR]: Contract analysis failed {"service":"smart-contract-auditor","environment":"test","error":"Analysis service unavailable","userId":"test-user-123"}
+2025-06-21 18:35:36.606 [ERROR]: Contract verification failed {"service":"smart-contract-auditor","environment":"test","error":"Verification service unavailable","contractAddress":"0x1234567890123456789012345678901234567890"}
+2025-06-21 18:35:36.968 [ERROR]: Contract analysis failed {"service":"smart-contract-auditor","environment":"test","error":"Service temporarily unavailable","userId":"test-user-123"}
+2025-06-21 18:35:40.535 [ERROR]: Failed to create workspace {"service":"smart-contract-auditor","environment":"test","error":"Workspace name and creator are required for validation"}
+2025-06-21 18:35:40.609 [ERROR]: Failed to delete workspace {"service":"smart-contract-auditor","environment":"test","workspaceId":"ws_1750511140600_a1gyoa1t7","userId":"unauthorized-user","error":"Only workspace owner can delete workspace"}
+2025-06-21 18:35:41.204 [ERROR]: Failed to join workspace {"service":"smart-contract-auditor","environment":"test","workspaceId":"invalid-id","userId":"user-123","error":"Workspace not found"}
+2025-06-21 18:35:41.227 [ERROR]: Failed to join workspace {"service":"smart-contract-auditor","environment":"test","workspaceId":"ws_1750511141221_58h1x7p40","userId":"unauthorized-user","error":"User not authorized for this workspace"}
+2025-06-21 18:35:46.552 [ERROR]: OpenRouter API key not configured {"service":"smart-contract-auditor","environment":"test"}
+2025-06-21 18:36:08.072 [ERROR]: Unable to connect to database {"service":"smart-contract-auditor","environment":"development","error":"Maximum call stack size exceeded"}
+2025-06-21 18:36:22.607 [ERROR]: OpenRouter API key not configured {"service":"smart-contract-auditor","environment":"test"}
+2025-06-21 18:36:36.138 [ERROR]: Unable to connect to database {"service":"smart-contract-auditor","environment":"development","error":"Maximum call stack size exceeded"}
+2025-06-21 18:37:33.051 [ERROR]: Unable to connect to database {"service":"smart-contract-auditor","environment":"development","error":"Maximum call stack size exceeded"}
+2025-06-21 18:51:26.717 [ERROR]: Unable to connect to database {"service":"smart-contract-auditor","environment":"development","error":"Maximum call stack size exceeded"}
+2025-06-21 19:00:11.253 [ERROR]: Unable to connect to database {"service":"smart-contract-auditor","environment":"development","error":"Maximum call stack size exceeded"}

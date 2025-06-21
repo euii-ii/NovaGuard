@@ -1,5 +1,13 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { RedirectToSignIn } from '@clerk/clerk-react';
 import './App.css';
+import {
+  SignedIn,
+  SignedOut,
+  UserButton
+} from '@clerk/clerk-react';
+import { useDatabase } from './hooks/useDatabase';
+import { DatabaseStatus } from './components/DatabaseStatus';
 import {
   FaFolder,
   FaPlay,
@@ -17,9 +25,6 @@ import {
   FaSync,
   FaDownload
 } from 'react-icons/fa';
-import { useAudit } from './hooks/useAudit';
-import DeploymentPanel from './components/ide/DeploymentPanel';
-import './components/ide/DeploymentPanel.css';
 
 interface Project {
   id: string;
@@ -48,8 +53,131 @@ interface NetworkOption {
 function App() {
   const [currentView, setCurrentView] = useState<'dashboard' | 'templates' | 'ide' | 'vulnerability'>('dashboard');
 
-  // Import the audit hook for real backend integration
-  const { auditContractByAddress, auditState } = useAudit();
+  // Check if we're in development mode and if Clerk is properly configured
+  const isDevelopment = import.meta.env.DEV;
+  const clerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+  const isClerkConfigured = clerkKey && !clerkKey.includes('placeholder');
+
+  // Database integration
+  const {
+    isInitialized,
+    dbUser,
+    error: dbError,
+    createVulnerabilityScan,
+    getUserVulnerabilityScans,
+    updateScanProgress,
+    completeScan,
+    createProject,
+    getUserProjects,
+    updateProject,
+    createConnection,
+    getUserConnections,
+    clearError
+  } = useDatabase();
+
+  // Initialize vulnerability controller with database integration
+  const vulnerabilityController = useRef(new (class VulnerabilityController {
+    async performScan(request: any, progressCallback?: any) {
+      const scanId = Date.now().toString();
+      
+      try {
+        // Create scan record in database
+        const scanRecord = await createVulnerabilityScan({
+          scanId,
+          contractAddress: request.contractAddress,
+          networkId: request.networkId,
+          scanType: 'full',
+          status: 'scanning',
+          progress: 0,
+          scanConfig: {
+            includeGasOptimization: true,
+            includeCompliance: true,
+            complianceStandards: ['ERC-20', 'ERC-721', 'ERC-1155']
+          }
+        });
+
+        if (!scanRecord) {
+          throw new Error('Failed to create scan record');
+        }
+
+        // Mock implementation with database updates
+        return new Promise((resolve) => {
+          let progress = 0;
+          const interval = setInterval(async () => {
+            progress += 10;
+            
+            // Update progress in database
+            await updateScanProgress(scanId, progress, progress < 100 ? 'scanning' : 'completed');
+            
+            progressCallback?.(progress, progress < 100 ? 'scanning' : 'completed');
+            
+            if (progress >= 100) {
+              clearInterval(interval);
+              
+              // Mock results
+              const results = {
+                overallRisk: 'Medium' as const,
+                totalVulnerabilities: 1,
+                gasOptimizationSavings: 2000,
+                vulnerabilities: [
+                  {
+                    id: 'VULN-001',
+                    title: 'Reentrancy Vulnerability',
+                    severity: 'High' as const,
+                    description: 'The contract may be vulnerable to reentrancy attacks.',
+                    recommendation: 'Use reentrancy guards or checks-effects-interactions pattern.',
+                    confidence: 'High' as const
+                  }
+                ],
+                gasOptimizations: [
+                  {
+                    id: 'GAS-001',
+                    title: 'Storage Optimization',
+                    description: 'Variables can be packed to save gas.',
+                    savings: 2000,
+                    impact: 'Medium' as const
+                  }
+                ],
+                complianceResults: [
+                  {
+                    standard: 'ERC-20',
+                    status: 'Compliant' as const,
+                    score: 95
+                  }
+                ]
+              };
+
+              // Complete scan in database
+              await completeScan(scanId, results);
+              
+              resolve({
+                success: true,
+                data: {
+                  scanId,
+                  contractAddress: request.contractAddress,
+                  networkId: request.networkId,
+                  vulnerabilities: results.vulnerabilities,
+                  gasOptimizations: results.gasOptimizations,
+                  complianceResults: results.complianceResults,
+                  summary: {
+                    overallRisk: results.overallRisk,
+                    totalVulnerabilities: results.totalVulnerabilities,
+                    gasOptimizationSavings: results.gasOptimizationSavings
+                  }
+                }
+              });
+            }
+          }, 300);
+        });
+      } catch (error) {
+        console.error('Scan failed:', error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Scan failed'
+        };
+      }
+    }
+  })()).current;
   const [activePanel, setActivePanel] = useState<'explorer' | 'plugin' | 'port' | 'sandbox' | 'git' | 'compiler' | 'deploy' | 'audit' | 'history' | 'statistics' | 'network'>('explorer');
   const [isConnected, setIsConnected] = useState(false);
   const [connectedWallet, setConnectedWallet] = useState<'metamask' | 'phantom' | null>(null);
@@ -78,36 +206,133 @@ function App() {
   const [scanStatus, setScanStatus] = useState<string>('idle');
   const [scanError, setScanError] = useState<string | null>(null);
 
-  const [projects, setProjects] = useState<Project[]>(() => {
-    // Load projects from localStorage on initialization
-    const savedProjects = localStorage.getItem('chainide-projects');
-    if (savedProjects) {
+  const [projects, setProjects] = useState<Project[]>([]);
+
+  // Test backend connection
+  useEffect(() => {
+    const testBackendConnection = async () => {
       try {
-        return JSON.parse(savedProjects);
+        const response = await fetch('http://localhost:3001/health');
+        const data = await response.json();
+        console.log('✅ Backend connection successful:', data);
       } catch (error) {
-        console.error('Error loading saved projects:', error);
+        console.error('❌ Backend connection failed:', error);
       }
-    }
-    return [
-      {
-        id: '1',
-        name: 'Untitled 65d1f741',
-        date: '2025-6-19',
-        type: 'contract',
-        status: 'draft'
+    };
+
+    testBackendConnection();
+  }, []);
+
+  // Load projects from database when initialized
+  useEffect(() => {
+    const loadProjects = async () => {
+      if (isInitialized) {
+        try {
+          const dbProjects = await getUserProjects();
+          // Convert database projects to local format
+          const localProjects = dbProjects.map(project => ({
+            id: project.projectId,
+            name: project.name,
+            date: project.createdAt.toISOString().split('T')[0],
+            type: project.type,
+            status: project.status
+          }));
+
+          if (localProjects.length === 0) {
+            // Create default project if none exist
+            try {
+              const defaultProject = await createProject({
+                projectId: '1',
+                name: 'Untitled 65d1f741',
+                type: 'contract',
+                status: 'draft',
+                networkType: 'ethereum'
+              });
+
+              if (defaultProject) {
+                setProjects([{
+                  id: defaultProject.projectId,
+                  name: defaultProject.name,
+                  date: defaultProject.createdAt.toISOString().split('T')[0],
+                  type: defaultProject.type,
+                  status: defaultProject.status
+                }]);
+              } else {
+                throw new Error('Failed to create default project');
+              }
+            } catch (createError) {
+              console.warn('Failed to create default project in database:', createError);
+              // Fallback to local default project
+              setProjects([
+                {
+                  id: '1',
+                  name: 'Untitled 65d1f741',
+                  date: new Date().toISOString().split('T')[0],
+                  type: 'contract',
+                  status: 'draft'
+                }
+              ]);
+            }
+          } else {
+            setProjects(localProjects);
+          }
+        } catch (error) {
+          console.error('Error loading projects from database:', error);
+          // Try to load from localStorage as fallback
+          const savedProjects = localStorage.getItem('chainide-projects');
+          if (savedProjects) {
+            try {
+              const parsedProjects = JSON.parse(savedProjects);
+              setProjects(parsedProjects);
+            } catch (parseError) {
+              console.error('Error parsing saved projects:', parseError);
+              // Final fallback to default project
+              setProjects([
+                {
+                  id: '1',
+                  name: 'Untitled 65d1f741',
+                  date: new Date().toISOString().split('T')[0],
+                  type: 'contract',
+                  status: 'draft'
+                }
+              ]);
+            }
+          } else {
+            // Final fallback to default project
+            setProjects([
+              {
+                id: '1',
+                name: 'Untitled 65d1f741',
+                date: new Date().toISOString().split('T')[0],
+                type: 'contract',
+                status: 'draft'
+              }
+            ]);
+          }
+        }
+      } else {
+        // If database not initialized, try localStorage
+        const savedProjects = localStorage.getItem('chainide-projects');
+        if (savedProjects) {
+          try {
+            const parsedProjects = JSON.parse(savedProjects);
+            setProjects(parsedProjects);
+          } catch (parseError) {
+            console.error('Error parsing saved projects:', parseError);
+          }
+        }
       }
-    ];
-  });
+    };
+
+    loadProjects();
+  }, [isInitialized, getUserProjects, createProject]);
 
   const networkOptions: NetworkOption[] = [
-    
     { id: 'ethereum', name: 'Ethereum', icon: '⟠', color: '#627eea' },
-    
     { id: 'polygon', name: 'Polygon', icon: '🔷', color: '#8247e5' },
-    
+    { id: 'solana', name: 'Solana', icon: '🌞', color: '#9945ff' },
     { id: 'sui', name: 'Sui', icon: '💧', color: '#4da2ff' },
     { id: 'aptos', name: 'Aptos', icon: '🅰️', color: '#00d4aa' },
-    
   ];
 
   const templates: Template[] = [
@@ -281,6 +506,39 @@ function App() {
       description: 'Gaming objects and assets management using Sui\'s object model.',
       category: 'Gaming',
       network: 'Sui'
+    },
+    // Solana templates
+    {
+      id: 'blank-solana',
+      name: 'Blank Template',
+      version: 'v1.0.0',
+      description: 'This is a blank template for the Solana blockchain using Rust.',
+      category: 'Basic',
+      network: 'Solana'
+    },
+    {
+      id: 'solana-token',
+      name: 'Solana Token',
+      version: 'v1.0.0',
+      description: 'Create SPL tokens on Solana blockchain with Rust programming language.',
+      category: 'Token',
+      network: 'Solana'
+    },
+    {
+      id: 'solana-nft',
+      name: 'Solana NFT Collection',
+      version: 'v1.1.0',
+      description: 'NFT collection template for Solana blockchain with Metaplex standard.',
+      category: 'NFT',
+      network: 'Solana'
+    },
+    {
+      id: 'solana-defi',
+      name: 'Solana DeFi Protocol',
+      version: 'v1.0.0',
+      description: 'DeFi protocol template leveraging Solana\'s high-speed transactions.',
+      category: 'DeFi',
+      network: 'Solana'
     },
     // Aptos templates
     {
@@ -477,6 +735,8 @@ function App() {
       case 'blank-sui':
       case 'blank-aptos':
         return ['contracts/BlankContract.sol', 'README.md', 'package.json'];
+      case 'blank-solana':
+        return ['src/lib.rs', 'Cargo.toml', 'README.md'];
       case 'storage':
         return ['contracts/Storage.sol', 'contracts/Migrations.sol', 'README.md', 'package.json'];
       case 'hello-world':
@@ -495,6 +755,14 @@ function App() {
         return ['contracts/GameAssets.sol', 'contracts/GameItems.sol', 'test/GameAssets.test.js', 'scripts/deploy.js', 'README.md', 'package.json'];
       case 'polygon-marketplace':
         return ['contracts/NFTMarketplace.sol', 'contracts/MarketplaceToken.sol', 'test/NFTMarketplace.test.js', 'scripts/deploy.js', 'README.md', 'package.json'];
+
+      // Solana templates
+      case 'solana-token':
+        return ['src/lib.rs', 'src/instruction.rs', 'src/processor.rs', 'Cargo.toml', 'README.md'];
+      case 'solana-nft':
+        return ['src/lib.rs', 'src/nft.rs', 'src/metadata.rs', 'Cargo.toml', 'README.md'];
+      case 'solana-defi':
+        return ['src/lib.rs', 'src/pool.rs', 'src/swap.rs', 'Cargo.toml', 'README.md'];
 
       // Sui templates
       case 'sui-coin':
@@ -544,7 +812,14 @@ function App() {
         return ['contracts/AstarContract.sol', 'ink/lib.rs', 'test/AstarContract.test.js', 'README.md', 'package.json'];
 
       default:
-        return ['contracts/Contract.sol', 'README.md', 'package.json'];
+        // Default based on network type
+        if (template.network === 'Solana') {
+          return ['src/lib.rs', 'Cargo.toml', 'README.md'];
+        } else if (template.network === 'Sui' || template.network === 'Aptos') {
+          return ['sources/main.move', 'Move.toml', 'README.md'];
+        } else {
+          return ['contracts/Contract.sol', 'README.md', 'package.json'];
+        }
     }
   };
 
@@ -553,8 +828,12 @@ function App() {
       return getSolidityTemplate(template, fileName);
     } else if (fileName.endsWith('.move')) {
       return getMoveTemplate(template, fileName);
+    } else if (fileName.endsWith('.rs')) {
+      return getRustTemplate(template, fileName);
     } else if (fileName === 'Move.toml') {
       return getMoveTomlContent(template);
+    } else if (fileName === 'Cargo.toml') {
+      return getCargoTomlContent(template);
     } else if (fileName === 'README.md') {
       return getReadmeContent(template);
     } else if (fileName === 'package.json') {
@@ -567,9 +846,98 @@ function App() {
     return '// File content will be loaded here';
   };
 
+  const getRustTemplate = (template: Template, fileName: string): string => {
+    if (template.network === 'Solana') {
+      return getSolanaRustTemplate(template, fileName);
+    }
+    return '// Rust file content';
+  };
+
+  const getCargoTomlContent = (template: Template): string => {
+    return `[package]
+name = "${template.name.toLowerCase().replace(/\s+/g, '_')}"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+solana-program = "~1.16.0"
+spl-token = "~4.0.0"
+borsh = "~0.10.0"
+thiserror = "~1.0.0"
+
+[lib]
+crate-type = ["cdylib", "lib"]`;
+  };
+
+  const getSolanaRustTemplate = (template: Template, fileName: string): string => {
+    if (fileName.includes('lib.rs')) {
+      return `use solana_program::{
+    account_info::{next_account_info, AccountInfo},
+    entrypoint,
+    entrypoint::ProgramResult,
+    msg,
+    program_error::ProgramError,
+    pubkey::Pubkey,
+};
+
+// Declare and export the program's entrypoint
+entrypoint!(process_instruction);
+
+// Program entrypoint's implementation
+pub fn process_instruction(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    instruction_data: &[u8],
+) -> ProgramResult {
+    msg!("${template.name} program entrypoint");
+
+    // Your program logic here
+
+    Ok(())
+}`;
+    } else if (fileName.includes('instruction.rs')) {
+      return `use borsh::{BorshDeserialize, BorshSerialize};
+
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
+pub enum Instruction {
+    /// Initialize instruction
+    Initialize,
+    /// Process instruction
+    Process { amount: u64 },
+}`;
+    } else if (fileName.includes('processor.rs')) {
+      return `use solana_program::{
+    account_info::AccountInfo,
+    entrypoint::ProgramResult,
+    pubkey::Pubkey,
+};
+
+use crate::instruction::Instruction;
+
+pub fn process_instruction(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    instruction: Instruction,
+) -> ProgramResult {
+    match instruction {
+        Instruction::Initialize => {
+            // Handle initialize
+            Ok(())
+        }
+        Instruction::Process { amount } => {
+            // Handle process with amount
+            Ok(())
+        }
+    }
+}`;
+    }
+    return '// Solana Rust content';
+  };
+
   const getReadmeContent = (template: Template): string => {
     const networkSpecific = {
       'Polygon': '## Polygon Network\n\nThis project is optimized for Polygon with low gas fees and fast transactions.\n\n### Deployment\n- Polygon Mainnet: Low cost transactions\n- Mumbai Testnet: Free testing environment',
+      'Solana': '## Solana Network\n\nThis project uses Rust programming language on Solana blockchain.\n\n### Features\n- High-speed transactions\n- Low transaction costs\n- Rust-based smart contracts (programs)',
       'Sui': '## Sui Network\n\nThis project uses Move language on Sui blockchain.\n\n### Features\n- Object-centric programming model\n- Parallel execution\n- Low latency transactions',
       'Aptos': '## Aptos Network\n\nThis project uses Move language on Aptos blockchain.\n\n### Features\n- Move language safety\n- High throughput\n- Formal verification support',
       'Flow': '## Flow Network\n\nThis project uses Cadence language on Flow blockchain.\n\n### Features\n- Resource-oriented programming\n- Built-in security\n- Developer-friendly tools',
@@ -1344,10 +1712,38 @@ describe("${template.name}", function () {
     setCurrentView('templates');
   };
 
-  // Vulnerability check functions using real backend
+  // Contract address validation
+  const validateContractAddress = (address: string, network: string): boolean => {
+    const trimmedAddress = address.trim();
+
+    switch (network) {
+      case 'ethereum':
+      case 'polygon':
+        // Ethereum-style addresses (0x followed by 40 hex characters)
+        return /^0x[a-fA-F0-9]{40}$/.test(trimmedAddress);
+      case 'solana':
+        // Solana addresses (base58, typically 32-44 characters)
+        return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(trimmedAddress);
+      case 'sui':
+      case 'aptos':
+        // Move-based addresses (0x followed by hex, variable length)
+        return /^0x[a-fA-F0-9]+$/.test(trimmedAddress);
+      default:
+        return trimmedAddress.length > 0;
+    }
+  };
+
+  // Vulnerability check functions
   const performVulnerabilityCheck = async () => {
-    if (!contractAddress.trim()) {
+    const trimmedAddress = contractAddress.trim();
+
+    if (!trimmedAddress) {
       setScanError('Please enter a contract address');
+      return;
+    }
+
+    if (!validateContractAddress(trimmedAddress, selectedVulnNetwork)) {
+      setScanError(`Invalid contract address format for ${selectedVulnNetwork} network`);
       return;
     }
 
@@ -1358,66 +1754,44 @@ describe("${template.name}", function () {
     setScanStatus('initializing');
 
     try {
-      // Use the real backend audit service
-      await auditContractByAddress({
+      // Create scan request
+      const scanRequest = {
         contractAddress: contractAddress.trim(),
-        chain: selectedVulnNetwork,
-        options: {
-          includeGasOptimization: true,
-          includeCodeQuality: true,
-          severityFilter: ['Critical', 'High', 'Medium', 'Low']
-        }
-      });
+        networkId: selectedVulnNetwork,
+        scanType: 'standard' as const,
+        includeGasOptimization: true,
+        includeComplianceCheck: true
+      };
 
-      // Monitor the audit state for progress and results
-      setScanStatus('scanning');
+      // Progress callback
+      const progressCallback = (progress: number, status: string) => {
+        setScanProgress(progress);
+        setScanStatus(status);
+      };
+
+      // Perform scan using the controller
+      const response = await vulnerabilityController.performScan(
+        scanRequest,
+        progressCallback
+      ) as any;
+
+      if (response.success && response.data) {
+        console.log('Scan results received:', response.data); // Debug log
+        setVulnerabilityResults(response.data);
+        setScanStatus('completed');
+      } else {
+        throw new Error(response.error?.message || 'Scan failed');
+      }
+
     } catch (error: any) {
       console.error('Vulnerability scan failed:', error);
       setScanError(error.message || 'Vulnerability scan failed. Please try again.');
       setScanStatus('failed');
-      setIsScanning(false);
-    }
-  };
-
-  // Monitor audit state changes
-  React.useEffect(() => {
-    if (auditState.isLoading) {
-      setIsScanning(true);
-      setScanProgress(auditState.progress);
-      setScanStatus('scanning');
-    } else if (auditState.result) {
-      // Convert audit result to vulnerability result format
-      const convertedResult = {
-        scanId: auditState.result.auditId,
-        contractAddress: contractAddress,
-        networkId: selectedVulnNetwork,
-        vulnerabilities: auditState.result.vulnerabilities.map(vuln => ({
-          id: `VULN-${Math.random().toString(36).substr(2, 9)}`,
-          title: vuln.name,
-          severity: vuln.severity,
-          description: vuln.description,
-          recommendation: vuln.recommendation || 'Review and fix this vulnerability'
-        })),
-        gasOptimizations: auditState.result.gasOptimizations || [],
-        complianceResults: [],
-        summary: {
-          overallRisk: auditState.result.riskLevel,
-          totalVulnerabilities: auditState.result.vulnerabilities.length,
-          gasOptimizationSavings: 0
-        }
-      };
-
-      setVulnerabilityResults(convertedResult);
-      setScanStatus('completed');
+    } finally {
       setIsScanning(false);
       setScanProgress(100);
-    } else if (auditState.error) {
-      setScanError(auditState.error);
-      setScanStatus('failed');
-      setIsScanning(false);
-      setScanProgress(0);
     }
-  }, [auditState, contractAddress, selectedVulnNetwork]);
+  };
 
   // Export results function
   const exportResults = async (format: 'json' | 'pdf' | 'csv') => {
@@ -1575,36 +1949,64 @@ describe("${template.name}", function () {
     localStorage.setItem('chainide-projects', JSON.stringify(projectsList));
   };
 
-  const createProjectFromTemplate = (template: Template) => {
-    const newProject: Project = {
-      id: Date.now().toString(),
-      name: `${template.name} ${Math.random().toString(36).substring(2, 8)}`,
-      date: new Date().toISOString().split('T')[0],
-      type: 'contract',
-      status: 'draft'
-    };
+  const createProjectFromTemplate = async (template: Template) => {
+    try {
+      const newProject: Project = {
+        id: Date.now().toString(),
+        name: `${template.name} ${Math.random().toString(36).substring(2, 8)}`,
+        date: new Date().toISOString().split('T')[0],
+        type: 'contract',
+        status: 'draft'
+      };
 
-    const updatedProjects = [...projects, newProject];
-    setProjects(updatedProjects);
-    saveProjectsToStorage(updatedProjects); // Save projects list
-    setCurrentProject(newProject.name);
+      // Try to create project in database if available
+      if (isInitialized) {
+        try {
+          await createProject({
+            projectId: newProject.id,
+            name: newProject.name,
+            type: newProject.type,
+            status: newProject.status,
+            networkType: template.network.toLowerCase()
+          });
+        } catch (dbError) {
+          console.warn('Failed to save project to database:', dbError);
+          // Continue with local storage fallback
+        }
+      }
 
-    // Initialize project files based on template
-    const initialFiles = getTemplateFiles(template);
-    const initialContents: {[key: string]: string} = {};
+      const updatedProjects = [...projects, newProject];
+      setProjects(updatedProjects);
+      saveProjectsToStorage(updatedProjects); // Save projects list
+      setCurrentProject(newProject.name);
 
-    initialFiles.forEach(file => {
-      initialContents[file] = getTemplateFileContent(template, file);
-    });
+      // Initialize project files based on template
+      const initialFiles = getTemplateFiles(template);
+      const initialContents: {[key: string]: string} = {};
 
-    setFileContents(initialContents);
-    saveProjectToStorage(newProject.name, initialContents); // Save project files
+      initialFiles.forEach(file => {
+        try {
+          initialContents[file] = getTemplateFileContent(template, file);
+        } catch (error) {
+          console.error(`Error generating content for file ${file}:`, error);
+          initialContents[file] = `// Error generating content for ${file}\n// Please check template configuration`;
+        }
+      });
 
-    // Find the first file to open (root or in a folder)
-    const firstFile = initialFiles[0] || Object.keys(initialContents)[0];
-    setOpenFiles([firstFile]);
-    setActiveFile(firstFile);
-    setCurrentView('ide');
+      setFileContents(initialContents);
+      saveProjectToStorage(newProject.name, initialContents); // Save project files
+
+      // Find the first file to open (root or in a folder)
+      const firstFile = initialFiles[0] || Object.keys(initialContents)[0];
+      if (firstFile) {
+        setOpenFiles([firstFile]);
+        setActiveFile(firstFile);
+      }
+      setCurrentView('ide');
+    } catch (error) {
+      console.error('Error creating project from template:', error);
+      alert('Failed to create project. Please try again.');
+    }
   };
 
   const saveCurrentProject = () => {
@@ -2033,11 +2435,11 @@ contract ${cleanFileName.replace('.sol', '').replace(/[^a-zA-Z0-9]/g, '')} {
                   <div
                     key={template.id}
                     className="template-card"
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       console.log('Template clicked:', template.name);
-                      createProjectFromTemplate(template);
+                      await createProjectFromTemplate(template);
                     }}
                     style={{ cursor: 'pointer' }}
                   >
@@ -2872,18 +3274,6 @@ contract ${cleanFileName.replace('.sol', '').replace(/[^a-zA-Z0-9]/g, '')} {
         );
       }
 
-      case 'deploy': {
-        return (
-          <DeploymentPanel
-            contractCode={activeFile ? (fileContents[activeFile] || '') : ''}
-            contractName={activeFile ? activeFile.split('/').pop()?.replace('.sol', '') || 'Contract' : 'Contract'}
-            isConnected={isConnected}
-            connectedWallet={connectedWallet}
-            onConnect={connectWallet}
-          />
-        );
-      }
-
       default: {
         return (
           <div className="vscode-panel">
@@ -2901,21 +3291,306 @@ contract ${cleanFileName.replace('.sol', '').replace(/[^a-zA-Z0-9]/g, '')} {
     }
   };
 
+  const renderIDEView = () => {
+    return (
+      <div className="chain-ide-container" onClick={closeContextMenu}>
+        {/* Top Bar */}
+        <div className="top-bar">
+          <div className="top-bar-left">
+            <div className="app-title">
+              <FaDatabase />
+              <span>FlashAudit</span>
+              <button className="back-to-dashboard" onClick={() => setCurrentView('dashboard')}>
+                ← Dashboard
+              </button>
+            </div>
+          </div>
+
+          <div className="top-bar-center">
+            <div className="network-selector">
+              <FaNetworkWired />
+              <span>{selectedNetwork}</span>
+            </div>
+          </div>
+
+          <div className="top-bar-right">
+            <div className="wallet-connection">
+              <FaWallet />
+              {isConnected ? (
+                <span className="wallet-connected">Connected</span>
+              ) : (
+                <button className="connect-wallet" onClick={connectWallet}>
+                  Connect Wallet
+                </button>
+              )}
+            </div>
+            <div className="user-profile">
+              {isDevelopment && !isClerkConfigured ? (
+                <div style={{ color: '#10b981', fontSize: '12px' }}>Dev Mode</div>
+              ) : (
+                <UserButton />
+              )}
+              <DatabaseStatus className="mt-2" />
+            </div>
+          </div>
+        </div>
+
+        {/* Left Sidebar */}
+        <div className="sidebar">
+          <div className="sidebar-icons">
+            <button
+              className={`sidebar-icon ${activePanel === 'explorer' ? 'active' : ''}`}
+              onClick={() => setActivePanel('explorer')}
+              title="File Explorer"
+            >
+              <FaFolder />
+            </button>
+            <button
+              className={`sidebar-icon ${activePanel === 'plugin' ? 'active' : ''}`}
+              onClick={() => setActivePanel('plugin')}
+              title="Plugin Manager"
+            >
+              <FaCube />
+            </button>
+            <button
+              className={`sidebar-icon ${activePanel === 'port' ? 'active' : ''}`}
+              onClick={() => setActivePanel('port')}
+              title="Port Manager"
+            >
+              <FaNetworkWired />
+            </button>
+            <button
+              className={`sidebar-icon ${activePanel === 'sandbox' ? 'active' : ''}`}
+              onClick={() => setActivePanel('sandbox')}
+              title="Sandbox Management"
+            >
+              <FaPlay />
+            </button>
+            <button
+              className={`sidebar-icon ${activePanel === 'git' ? 'active' : ''}`}
+              onClick={() => setActivePanel('git')}
+              title="Git Manager"
+            >
+              <FaHistory />
+            </button>
+          </div>
+
+          <div className="panel-content">
+            {renderPanelContent()}
+          </div>
+        </div>
+
+        {/* Main Editor Area */}
+        <div className="main-content">
+          <div className="editor-container">
+            {currentProject && activeFile ? (
+              <div className="file-editor">
+                {/* File Tabs */}
+                <div className="file-tabs">
+                  {openFiles.map(file => (
+                    <div
+                      key={file}
+                      className={`file-tab ${activeFile === file ? 'active' : ''}`}
+                      onClick={() => setActiveFile(file)}
+                    >
+                      <span>{file.split('/').pop()}</span>
+                      <button
+                        className="close-tab"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newOpenFiles = openFiles.filter(f => f !== file);
+                          setOpenFiles(newOpenFiles);
+                          if (activeFile === file && newOpenFiles.length > 0) {
+                            setActiveFile(newOpenFiles[0]);
+                          } else if (newOpenFiles.length === 0) {
+                            setActiveFile(null);
+                          }
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* File Content Editor */}
+                <div className="file-content">
+                  <div className="file-header">
+                    <span className="file-path">{activeFile}</span>
+                    <div className="file-actions">
+                      <button className="save-btn" title="Save File" onClick={saveCurrentProject}>
+                        💾 Save
+                      </button>
+                    </div>
+                  </div>
+                  <div className="code-editor-container">
+                    <div className="line-numbers">
+                      {(() => {
+                        const content = fileContents[activeFile] || '';
+                        const lines = content.split('\n');
+                        const lineCount = Math.max(lines.length, 1);
+                        return Array.from({ length: lineCount }, (_, index) => (
+                          <div
+                            key={index}
+                            className={`line-number ${currentLine === index + 1 ? 'current-line' : ''}`}
+                          >
+                            {index + 1}
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                    <textarea
+                      className="code-editor"
+                      value={fileContents[activeFile] || ''}
+                      onChange={(e) => {
+                        const newFileContents = {
+                          ...fileContents,
+                          [activeFile]: e.target.value
+                        };
+                        setFileContents(newFileContents);
+
+                        if (currentProject) {
+                          clearTimeout((window as any).autoSaveTimeout);
+                          (window as any).autoSaveTimeout = setTimeout(() => {
+                            saveProjectToStorage(currentProject, newFileContents);
+                          }, 1000);
+                        }
+                      }}
+                      onSelect={(e) => {
+                        const textarea = e.target as HTMLTextAreaElement;
+                        const cursorPosition = textarea.selectionStart;
+                        const textBeforeCursor = textarea.value.substring(0, cursorPosition);
+                        const lineNumber = textBeforeCursor.split('\n').length;
+                        setCurrentLine(lineNumber);
+                      }}
+                      onClick={(e) => {
+                        const textarea = e.target as HTMLTextAreaElement;
+                        const cursorPosition = textarea.selectionStart;
+                        const textBeforeCursor = textarea.value.substring(0, cursorPosition);
+                        const lineNumber = textBeforeCursor.split('\n').length;
+                        setCurrentLine(lineNumber);
+                      }}
+                      onKeyUp={(e) => {
+                        const textarea = e.target as HTMLTextAreaElement;
+                        const cursorPosition = textarea.selectionStart;
+                        const textBeforeCursor = textarea.value.substring(0, cursorPosition);
+                        const lineNumber = textBeforeCursor.split('\n').length;
+                        setCurrentLine(lineNumber);
+                      }}
+                      placeholder="Start coding..."
+                      spellCheck={false}
+                      onScroll={(e) => {
+                        const lineNumbers = e.currentTarget.parentElement?.querySelector('.line-numbers') as HTMLElement;
+                        if (lineNumbers) {
+                          lineNumbers.scrollTop = e.currentTarget.scrollTop;
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : currentProject ? (
+              <div className="no-file-selected">
+                <h3>📁 {currentProject}</h3>
+                <p>Select a file from the explorer to start editing</p>
+                <div className="project-actions">
+                  <button className="action-btn" onClick={() => setActivePanel('compiler')}>
+                    ⚙️ Compile Project
+                  </button>
+                  <button className="action-btn" onClick={() => setActivePanel('deploy')}>
+                    🚀 Deploy Contract
+                  </button>
+                  <button className="action-btn" onClick={() => setActivePanel('audit')}>
+                    🛡️ Run Security Audit
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="welcome-message">
+                <h2>🎉 Welcome to FlashAudit!</h2>
+                <p>Your professional smart contract development environment is ready.</p>
+                <div className="features-list">
+                  <div className="feature-item">✅ Multi-network support</div>
+                  <div className="feature-item">✅ Advanced security auditing</div>
+                  <div className="feature-item">✅ Real-time compilation</div>
+                  <div className="feature-item">✅ One-click deployment</div>
+                  <div className="feature-item">✅ Audit statistics & analytics</div>
+                </div>
+                <p className="get-started">👈 Use the sidebar to explore different features!</p>
+              </div>
+            )}
+          </div>
+        </div>
+        {/* Terminal/Output Panel */}
+        <div className="bottom-panel">
+          <div className="terminal-content">
+            <div className="terminal-header">
+              <span>📟 Output</span>
+            </div>
+            <div className="terminal-output">
+              <div className="terminal-line">[{new Date().toLocaleTimeString()}] ChainIDE IDE loaded successfully!</div>
+              <div className="terminal-line">[{new Date().toLocaleTimeString()}] File editing and compilation available.</div>
+              <div className="terminal-line">[{new Date().toLocaleTimeString()}] Use the sidebar to compile, deploy, or audit your contract.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Main render logic
-  if (currentView === 'dashboard') {
-    return renderDashboard();
-  }
-
-  if (currentView === 'templates') {
-    return renderTemplatesView();
-  }
-
-  if (currentView === 'vulnerability') {
-    return renderVulnerabilityView();
+  // In development mode without proper Clerk setup, show the app directly
+  if (isDevelopment && !isClerkConfigured) {
+    return (
+      <div className="app-container">
+        <div className="dev-notice" style={{
+          background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+          color: 'white',
+          padding: '8px 16px',
+          textAlign: 'center',
+          fontSize: '14px',
+          fontWeight: '500'
+        }}>
+          🚧 Development Mode - Authentication Disabled | Set up Clerk for production
+        </div>
+        {(() => {
+          if (currentView === 'dashboard') {
+            return renderDashboard();
+          }
+          if (currentView === 'templates') {
+            return renderTemplatesView();
+          }
+          if (currentView === 'vulnerability') {
+            return renderVulnerabilityView();
+          }
+          return renderIDEView();
+        })()}
+      </div>
+    );
   }
 
   return (
-    <div className="chain-ide-container" onClick={closeContextMenu}>
+    <>
+      <SignedOut>
+        <RedirectToSignIn redirectUrl="/auth" />
+      </SignedOut>
+
+      <SignedIn>
+        {(() => {
+          if (currentView === 'dashboard') {
+            return renderDashboard();
+          }
+
+          if (currentView === 'templates') {
+            return renderTemplatesView();
+          }
+
+          if (currentView === 'vulnerability') {
+            return renderVulnerabilityView();
+          }
+
+          return (
+            <div className="chain-ide-container" onClick={closeContextMenu}>
       {/* Top Bar */}
       <div className="top-bar">
         <div className="top-bar-left">
@@ -2945,6 +3620,10 @@ contract ${cleanFileName.replace('.sol', '').replace(/[^a-zA-Z0-9]/g, '')} {
                 Connect Wallet
               </button>
             )}
+          </div>
+          <div className="user-profile">
+            <UserButton />
+            <DatabaseStatus className="mt-2" />
           </div>
         </div>
       </div>
@@ -2986,13 +3665,6 @@ contract ${cleanFileName.replace('.sol', '').replace(/[^a-zA-Z0-9]/g, '')} {
             title="Git Manager"
           >
             <FaHistory />
-          </button>
-          <button
-            className={`sidebar-icon ${activePanel === 'deploy' ? 'active' : ''}`}
-            onClick={() => setActivePanel('deploy')}
-            title="Deploy Contract"
-          >
-            🚀
           </button>
         </div>
         
@@ -3161,7 +3833,11 @@ contract ${cleanFileName.replace('.sol', '').replace(/[^a-zA-Z0-9]/g, '')} {
           </div>
         </div>
       </div>
-    </div>
+            </div>
+          );
+        })()}
+      </SignedIn>
+    </>
   );
 }
 

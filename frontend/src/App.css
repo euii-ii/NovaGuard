@@ -11347,3 +11347,143 @@ button,
 .close-modal:hover {
   background-color: #4a4a4a !important;
 }
+
+/* Development Mode Styles */
+.app-container {
+  min-height: 100vh;
+  background-color: #1e1e1e;
+}
+
+.dev-notice {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  padding: 8px 16px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Clerk Authentication Styles */
+.auth-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1e1e1e 0%, #2d2d30 100%);
+  padding: 20px;
+}
+
+.auth-card {
+  background: linear-gradient(145deg, #2d2d30 0%, #323233 100%);
+  border-radius: 16px;
+  padding: 40px;
+  box-shadow: 
+    0 20px 40px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+}
+
+.auth-header {
+  margin-bottom: 32px;
+}
+
+.auth-header h1 {
+  color: #ffffff;
+  font-size: 32px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  background: linear-gradient(135deg, #007acc 0%, #4ade80 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.auth-header p {
+  color: #cccccc;
+  font-size: 14px;
+  margin: 0;
+  opacity: 0.8;
+}
+
+.auth-content h2 {
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 500;
+  margin: 0 0 8px 0;
+}
+
+.auth-content p {
+  color: #cccccc;
+  font-size: 16px;
+  margin: 0 0 32px 0;
+  opacity: 0.9;
+}
+
+.auth-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-btn {
+  padding: 14px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.signin-btn {
+  background: linear-gradient(135deg, #007acc 0%, #1177bb 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 122, 204, 0.3);
+}
+
+.signin-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 122, 204, 0.4);
+}
+
+.signup-btn {
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(74, 222, 128, 0.3);
+}
+
+.signup-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(74, 222, 128, 0.4);
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
+  margin-left: 16px;
+}
+
+/* Clerk UserButton customization */
+.user-profile .cl-userButtonBox {
+  display: flex;
+  align-items: center;
+}
+
+.user-profile .cl-userButtonTrigger {
+  border-radius: 50%;
+  border: 2px solid #007acc;
+  transition: all 0.2s ease;
+}
+
+.user-profile .cl-userButtonTrigger:hover {
+  border-color: #1177bb;
+  transform: scale(1.05);
+}

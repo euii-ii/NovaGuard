@@ -2,9 +2,10 @@
 jest.mock('../../src/services/aiAnalysisPipeline');
 jest.mock('../../src/services/multiChainWeb3Service');
 jest.mock('../../src/services/auditEngine');
-jest.mock('../../src/middleware/advancedRateLimiter');
+jest.mock('../../src/services/teamCollaborationService', () => require('../mocks/teamCollaborationService'));
+jest.mock('../../src/middleware/jwtAuth', () => require('../mocks/jwtAuth'));
+jest.mock('../../src/middleware/advancedRateLimiter', () => require('../mocks/advancedRateLimiter'));
 jest.mock('../../src/services/realTimeDevelopmentService');
-jest.mock('../../src/services/teamCollaborationService');
 
 const request = require('supertest');
 const express = require('express');

@@ -373,7 +373,23 @@ function loco() {
   // Also initialize after a short delay to ensure all elements are rendered
   setTimeout(initializeFloatingElements, 1000);
 
-// Function to handle React app navigation
+// Function to handle authentication page navigation
+function openAuthPage() {
+  // Navigate to the React authentication route
+  // Check current port and redirect accordingly
+  const currentPort = window.location.port;
+  const targetPort = currentPort || '5174'; // Default to 5174 if no port specified
+
+  // If we're on the static file server, redirect to React app
+  if (window.location.pathname.includes('.html')) {
+    window.location.href = `http://localhost:5174/auth`;
+  } else {
+    // Already in React app context
+    window.location.href = '/auth';
+  }
+}
+
+// Function to handle React app navigation (legacy)
 function openReactApp() {
   // Show loading indicator
   const button = document.querySelector('button[onclick="openReactApp()"]');

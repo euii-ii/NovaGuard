@@ -174,10 +174,10 @@
                     <div class="command">yarn dev</div>
                 </div>
                 <div class="step">
-                    <strong>Step 4:</strong> The server will start (usually on http://localhost:5173)
+                    <strong>Step 4:</strong> The server will start (usually on http://localhost:5174)
                 </div>
                 <div class="step">
-                    <strong>Step 5:</strong> Click "Try Again" below or navigate to http://localhost:5173/react-app.html
+                    <strong>Step 5:</strong> Click "Try Again" below or navigate to http://localhost:5174/
                 </div>
             </div>
         </div>
@@ -205,7 +205,7 @@
     <script>
         const statusDiv = document.getElementById('status');
         const instructionsDiv = document.getElementById('instructions');
-        const devServerUrl = 'http://localhost:5173/react-app.html';
+        const devServerUrl = 'http://localhost:5174/';
 
         function updateStatus(message, type) {
             statusDiv.textContent = message;
@@ -219,7 +219,7 @@
         function checkDevServer() {
             updateStatus('🔍 Checking if development server is running...', 'checking');
             
-            fetch('http://localhost:5173/')
+            fetch('http://localhost:5174/')
                 .then(response => {
                     if (response.ok) {
                         updateStatus('✅ Development server is running! Redirecting...', 'success');
@@ -241,7 +241,7 @@
         }
 
         function openDevServer() {
-            window.open('http://localhost:5173/', '_blank');
+            window.open('http://localhost:5174/', '_blank');
         }
 
         // Check server status on page load
