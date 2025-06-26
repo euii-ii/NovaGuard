@@ -31,6 +31,7 @@ const chainIDERoutes = require('./controllers/chainIDEController');
 const realTimeDevelopmentRoutes = require('./controllers/realTimeDevelopmentController');
 const collaborativeToolsRoutes = require('./controllers/collaborativeToolsController');
 const pitchRoutes = require('./controllers/pitchController');
+const monitoringRoutes = require('./routes/monitoringRoutes');
 
 // Initialize Express app
 const app = express();
@@ -237,6 +238,7 @@ app.use('/api/v1/chainide', chainIDERoutes);
 app.use('/api/v1/realtime', realTimeDevelopmentRoutes);
 app.use('/api/v1/collaboration', collaborativeToolsRoutes);
 app.use('/api/pitch', pitchRoutes);
+app.use('/api', monitoringRoutes);
 
 // Analytics endpoint
 app.get('/api/v1/analytics/dashboard',

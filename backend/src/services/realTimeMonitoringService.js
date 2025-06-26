@@ -4,6 +4,11 @@ const cron = require('node-cron');
 const multiChainWeb3Service = require('./multiChainWeb3Service');
 const aiAnalysisPipeline = require('./aiAnalysisPipeline');
 const logger = require('../utils/logger');
+const { callGemmaModel } = require('./llmService');
+const { createClient } = require('@supabase/supabase-js');
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 /**
  * Real-Time Monitoring Service
@@ -989,6 +994,36 @@ class RealTimeMonitoringService extends EventEmitter {
       });
     }
   }
+
+  /**
+   * Analyze a contract event for anomalies using AI
+   * @param {Object} event - Event data
+   * @returns {Promise<Object>} AI analysis result
+   */
+  async analyzeEventWithAI(event) {
+    const prompt = `Analyze this smart contract event for suspicious or malicious activity. Return JSON: { flagged: true/false, reason: string }\nEvent: ${JSON.stringify(event)}`;
+    return callGemmaModel(prompt, 'monitoring');
+  }
+
+  /**
+   * Fetch monitoring events for a contract
+   */
+  async getMonitoringEvents(contractId) {
+    const { data, error } = await supabase.from('monitoring_events').select('*').eq('contract_id', contractId).order('event_timestamp', { ascending: false });
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  /**
+   * Flag a monitoring event as suspicious
+   */
+  async flagMonitoringEvent(eventId, reason = '') {
+    const { error } = await supabase.from('monitoring_events').update({ flagged: true, flag_reason: reason }).eq('id', eventId);
+    if (error) throw new Error(error.message);
+    return { success: true };
+  }
 }
 
-module.exports = new RealTimeMonitoringService();
+// Export instance and new methods for controller use
+const realTimeMonitoringService = new RealTimeMonitoringService();
+module.exports = realTimeMonitoringService;
