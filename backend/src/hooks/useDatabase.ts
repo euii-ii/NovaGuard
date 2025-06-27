@@ -1,6 +1,3 @@
-// Minimal placeholder for useDatabase hook
-// This prevents import errors in the frontend until you implement real DB logic
-
 export function useDatabase() {
   return {
     isInitialized: true,

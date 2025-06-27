@@ -1,24 +1,15 @@
-const {
-  User,
-  VulnerabilityPattern,
-  AIAnalysisResult,
-  Contract,
-  VulnerabilityInstance,
-  UserActivity,
-  mongoDBService
-} = require('../models');
-const { AuditResult, AnalyticsEvent, UserSession, MonitoringData } = require('../models/mongoModels');
+const supabaseService = require('./supabaseService');
 const logger = require('../utils/logger');
 const crypto = require('crypto');
 
 /**
  * Data Persistence Service
- * Handles all database operations for the enhanced smart contract auditor
+ * Handles all database operations using Supabase for the smart contract auditor
  */
 class DataPersistenceService {
   constructor() {
-    this.enabled = !!process.env.DATABASE_URL;
-    this.mongoEnabled = process.env.USE_MONGODB === 'true';
+    this.supabase = supabaseService;
+    this.enabled = true; // Always enabled with Supabase
   }
 
   /**
@@ -28,22 +19,12 @@ class DataPersistenceService {
    * @returns {Object} Saved analysis result
    */
   async saveAnalysisResult(analysisData, userId = null) {
-    if (!this.enabled) {
-      logger.debug('Database not configured, skipping analysis save');
-      return null;
-    }
-
     // Validate required fields
     if (!analysisData || typeof analysisData !== 'object') {
       throw new Error('Invalid analysis data provided');
     }
 
     try {
-      // Generate contract code hash with validation
-      const contractCodeHash = analysisData.contractCode && typeof analysisData.contractCode === 'string'
-        ? crypto.createHash('sha256').update(analysisData.contractCode).digest('hex')
-        : null;
-
       // Find or create contract record
       let contract = null;
       if (analysisData.contractAddress && analysisData.chain) {
@@ -57,73 +38,70 @@ class DataPersistenceService {
       // Validate and sanitize analysis data
       const sanitizedData = this.sanitizeAnalysisData(analysisData);
 
-      // Create analysis result record with validation
-      const analysisResult = await AIAnalysisResult.create({
-        analysisId: sanitizedData.analysisId || this.generateAnalysisId(),
-        userId,
-        contractId: contract?.id,
-        contractAddress: sanitizedData.contractAddress,
-        contractCodeHash,
-        chainId: this.getChainId(sanitizedData.chain),
-        chainName: sanitizedData.chain,
-        analysisType: sanitizedData.analysisType || 'multi-agent',
-        agentsUsed: Array.isArray(sanitizedData.metadata?.agentsUsed) ? sanitizedData.metadata.agentsUsed : [],
-        failedAgents: Array.isArray(sanitizedData.metadata?.failedAgents) ? sanitizedData.metadata.failedAgents : [],
-        overallScore: this.validateScore(sanitizedData.overallScore),
-        riskLevel: this.validateRiskLevel(sanitizedData.riskLevel),
-        confidenceScore: this.validateConfidenceScore(sanitizedData.confidenceScore),
-        vulnerabilitiesFound: Array.isArray(sanitizedData.vulnerabilities) ? sanitizedData.vulnerabilities.length : 0,
-        vulnerabilities: Array.isArray(sanitizedData.vulnerabilities) ? sanitizedData.vulnerabilities : [],
-        recommendations: Array.isArray(sanitizedData.recommendations) ? sanitizedData.recommendations : [],
-        gasOptimizations: Array.isArray(sanitizedData.gasOptimizations) ? sanitizedData.gasOptimizations : [],
-        codeQuality: typeof sanitizedData.codeQuality === 'object' ? sanitizedData.codeQuality : {},
-        executionTimeMs: this.validateExecutionTime(sanitizedData.metadata?.executionTime),
-        analysisVersion: sanitizedData.metadata?.analysisVersion || '2.0.0',
-        modelVersions: typeof sanitizedData.metadata?.modelVersions === 'object' ? sanitizedData.metadata.modelVersions : {},
-        aggregationMethod: sanitizedData.metadata?.aggregationMethod,
-        completedAt: new Date()
-      });
+      // Create analysis result record using Supabase
+      const auditData = {
+        contract_id: contract?.data?.id,
+        user_id: userId,
+        audit_type: sanitizedData.analysisType || 'multi-agent',
+        status: 'completed',
+        results: {
+          overallScore: this.validateScore(sanitizedData.overallScore),
+          riskLevel: this.validateRiskLevel(sanitizedData.riskLevel),
+          vulnerabilities: Array.isArray(sanitizedData.vulnerabilities) ? sanitizedData.vulnerabilities : [],
+          recommendations: Array.isArray(sanitizedData.recommendations) ? sanitizedData.recommendations : [],
+          gasOptimizations: Array.isArray(sanitizedData.gasOptimizations) ? sanitizedData.gasOptimizations : [],
+          codeQuality: typeof sanitizedData.codeQuality === 'object' ? sanitizedData.codeQuality : {},
+          metadata: {
+            agentsUsed: Array.isArray(sanitizedData.metadata?.agentsUsed) ? sanitizedData.metadata.agentsUsed : [],
+            failedAgents: Array.isArray(sanitizedData.metadata?.failedAgents) ? sanitizedData.metadata.failedAgents : [],
+            analysisVersion: sanitizedData.metadata?.analysisVersion || '2.0.0',
+            modelVersions: typeof sanitizedData.metadata?.modelVersions === 'object' ? sanitizedData.metadata.modelVersions : {},
+            aggregationMethod: sanitizedData.metadata?.aggregationMethod
+          }
+        },
+        vulnerability_score: this.calculateVulnerabilityScore(sanitizedData.vulnerabilities),
+        security_score: this.validateScore(sanitizedData.overallScore),
+        confidence_score: this.validateConfidenceScore(sanitizedData.confidenceScore),
+        analysis_duration: this.validateExecutionTime(sanitizedData.metadata?.executionTime),
+        completed_at: new Date().toISOString()
+      };
+
+      const auditResult = await this.supabase.createAuditResult(auditData);
+
+      if (!auditResult.success) {
+        throw new Error(`Failed to save audit result: ${auditResult.error}`);
+      }
 
       // Save individual vulnerability instances
       if (analysisData.vulnerabilities && analysisData.vulnerabilities.length > 0) {
         await this.saveVulnerabilityInstances(
           analysisData.vulnerabilities,
-          analysisResult.id,
-          contract?.id
+          auditResult.data.id
         );
       }
 
-      // Update contract analysis statistics
-      if (contract) {
-        await this.updateContractAnalysisStats(contract.id);
-      }
-
-      // Save to MongoDB for enhanced analytics and audit trail
-      if (this.mongoEnabled && mongoDBService.isMongoConnected()) {
-        try {
-          await this.saveAuditResultToMongo(analysisData, userId, analysisResult.analysisId);
-        } catch (mongoError) {
-          logger.warn('Failed to save audit result to MongoDB', { error: mongoError.message });
-        }
-      }
-
-      // Log user activity
+      // Log analytics
       if (userId) {
-        await this.logUserActivity(userId, 'analysis_completed', 'analysis', analysisResult.id, {
-          analysisType: analysisData.analysisType,
-          overallScore: analysisData.overallScore,
-          vulnerabilitiesFound: analysisData.vulnerabilities?.length || 0
+        await this.supabase.logAnalytics({
+          user_id: userId,
+          event_type: 'analysis_completed',
+          event_data: {
+            audit_id: auditResult.data.id,
+            analysis_type: analysisData.analysisType,
+            overall_score: analysisData.overallScore,
+            vulnerabilities_found: analysisData.vulnerabilities?.length || 0
+          }
         });
       }
 
-      logger.info('Analysis result saved to database', {
-        analysisId: analysisResult.analysisId,
+      logger.info('Analysis result saved to Supabase', {
+        auditId: auditResult.data.id,
         userId,
         contractAddress: analysisData.contractAddress,
         vulnerabilitiesFound: analysisData.vulnerabilities?.length || 0
       });
 
-      return analysisResult;
+      return auditResult.data;
 
     } catch (error) {
       logger.error('Failed to save analysis result', { 
@@ -142,39 +120,45 @@ class DataPersistenceService {
    */
   async findOrCreateContract(contractData) {
     try {
-      const [contract, created] = await Contract.findOrCreate({
-        where: {
-          address: contractData.address,
-          chainId: this.getChainId(contractData.chainName)
-        },
-        defaults: {
-          address: contractData.address,
-          chainId: this.getChainId(contractData.chainName),
-          chainName: contractData.chainName,
-          name: contractData.name,
-          sourceCode: contractData.sourceCode,
-          sourceVerified: !!contractData.sourceCode,
-          firstAnalyzedAt: new Date(),
-          lastAnalyzedAt: new Date(),
-          analysisCount: 0
-        }
-      });
+      // Try to find existing contract
+      const { data: existingContracts } = await this.supabase.admin
+        .from('contracts')
+        .select('*')
+        .eq('contract_address', contractData.address)
+        .eq('chain_id', this.getChainId(contractData.chainName))
+        .limit(1);
 
-      if (!created) {
+      if (existingContracts && existingContracts.length > 0) {
         // Update existing contract
-        await contract.update({
-          lastAnalyzedAt: new Date(),
-          sourceCode: contractData.sourceCode || contract.sourceCode,
-          sourceVerified: !!contractData.sourceCode || contract.sourceVerified
+        const contractResult = await this.supabase.admin
+          .from('contracts')
+          .update({
+            contract_code: contractData.sourceCode || existingContracts[0].contract_code,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingContracts[0].id)
+          .select()
+          .single();
+
+        return contractResult;
+      } else {
+        // Create new contract
+        const contractResult = await this.supabase.createContract({
+          contract_address: contractData.address,
+          contract_code: contractData.sourceCode || '',
+          protocol_type: contractData.protocolType || 'unknown',
+          chain_id: this.getChainId(contractData.chainName),
+          name: contractData.name || `Contract ${contractData.address.substring(0, 8)}...`,
+          description: contractData.description || 'Smart contract for analysis'
         });
+
+        return contractResult;
       }
 
-      return contract;
-
     } catch (error) {
-      logger.error('Failed to find or create contract', { 
+      logger.error('Failed to find or create contract', {
         error: error.message,
-        contractAddress: contractData.address 
+        contractAddress: contractData.address
       });
       throw error;
     }
@@ -184,9 +168,8 @@ class DataPersistenceService {
    * Save vulnerability instances
    * @param {Array} vulnerabilities - Vulnerability data
    * @param {string} analysisResultId - Analysis result ID
-   * @param {string} contractId - Contract ID
    */
-  async saveVulnerabilityInstances(vulnerabilities, analysisResultId, contractId) {
+  async saveVulnerabilityInstances(vulnerabilities, analysisResultId) {
     if (!Array.isArray(vulnerabilities) || vulnerabilities.length === 0) {
       logger.debug('No vulnerabilities to save');
       return;
@@ -195,33 +178,33 @@ class DataPersistenceService {
     try {
       const instances = vulnerabilities
         .filter(vuln => vuln && typeof vuln === 'object')
-        .map(vuln => this.sanitizeVulnerabilityInstance({
-          analysisResultId,
-          contractId,
-          name: vuln.name,
-          description: vuln.description,
-          severity: vuln.severity,
-          category: vuln.category,
-          confidence: vuln.confidence || vuln.finalConfidence || 0.5,
-          affectedLines: vuln.affectedLines || [],
-          codeSnippet: vuln.codeSnippet,
-          functionName: vuln.functionName,
-          detectedBy: vuln.detectedBy || 'unknown',
-          detectionMethod: vuln.detectionMethod || 'ai',
-          impactDescription: vuln.impact,
-          exploitScenario: vuln.exploitScenario,
-          fixRecommendation: vuln.recommendation,
-          status: 'open',
-          verified: false
+        .map(vuln => ({
+          audit_result_id: analysisResultId,
+          type: vuln.category || vuln.type || 'unknown',
+          severity: this.validateSeverity(vuln.severity),
+          title: vuln.name || vuln.title || 'Unnamed Vulnerability',
+          description: vuln.description || 'No description provided',
+          line_number: Array.isArray(vuln.affectedLines) && vuln.affectedLines.length > 0
+            ? vuln.affectedLines[0]
+            : null,
+          code_snippet: vuln.codeSnippet || null,
+          recommendation: vuln.recommendation || vuln.fixRecommendation || 'No recommendation provided',
+          confidence: this.validateConfidenceScore(vuln.confidence || vuln.finalConfidence || 0.5)
         }))
         .filter(instance => instance !== null); // Remove invalid instances
 
-      await VulnerabilityInstance.bulkCreate(instances);
+      if (instances.length > 0) {
+        const result = await this.supabase.createVulnerabilities(instances);
 
-      logger.debug('Vulnerability instances saved', {
-        count: instances.length,
-        analysisResultId
-      });
+        if (!result.success) {
+          throw new Error(`Failed to save vulnerabilities: ${result.error}`);
+        }
+
+        logger.debug('Vulnerability instances saved', {
+          count: instances.length,
+          analysisResultId
+        });
+      }
 
     } catch (error) {
       logger.error('Failed to save vulnerability instances', { 
@@ -233,22 +216,31 @@ class DataPersistenceService {
   }
 
   /**
-   * Update contract analysis statistics
-   * @param {string} contractId - Contract ID
+   * Calculate vulnerability score based on vulnerabilities
+   * @param {Array} vulnerabilities - Array of vulnerabilities
+   * @returns {number} Vulnerability score
    */
-  async updateContractAnalysisStats(contractId) {
-    try {
-      const contract = await Contract.findByPk(contractId);
-      if (contract) {
-        await contract.increment('analysisCount');
-        await contract.update({ lastAnalyzedAt: new Date() });
-      }
-    } catch (error) {
-      logger.error('Failed to update contract stats', { 
-        error: error.message,
-        contractId 
-      });
+  calculateVulnerabilityScore(vulnerabilities) {
+    if (!Array.isArray(vulnerabilities) || vulnerabilities.length === 0) {
+      return 100; // Perfect score if no vulnerabilities
     }
+
+    const severityWeights = {
+      'critical': 40,
+      'high': 25,
+      'medium': 10,
+      'low': 5,
+      'info': 1
+    };
+
+    const totalWeight = vulnerabilities.reduce((sum, vuln) => {
+      const severity = (vuln.severity || 'low').toLowerCase();
+      return sum + (severityWeights[severity] || severityWeights['low']);
+    }, 0);
+
+    // Calculate score (0-100, where 100 is best)
+    const maxPossibleWeight = vulnerabilities.length * severityWeights['critical'];
+    return Math.max(0, Math.round(100 - (totalWeight / maxPossibleWeight) * 100));
   }
 
   /**
@@ -371,100 +363,35 @@ class DataPersistenceService {
   }
 
   /**
-   * Save audit result to MongoDB for enhanced analytics
-   * @param {Object} analysisData - Analysis result data
-   * @param {string} userId - User ID
-   * @param {string} analysisId - Analysis ID
-   */
-  async saveAuditResultToMongo(analysisData, userId, analysisId) {
-    if (!this.mongoEnabled || !mongoDBService.isMongoConnected()) {
-      return;
-    }
-
-    try {
-      const auditResult = new AuditResult({
-        auditId: analysisId,
-        contractAddress: analysisData.contractAddress,
-        chain: analysisData.chain,
-        chainId: this.getChainId(analysisData.chain),
-        contractInfo: {
-          name: analysisData.contractInfo?.name,
-          symbol: analysisData.contractInfo?.symbol,
-          compilerVersion: analysisData.contractInfo?.compilerVersion,
-          optimizationUsed: analysisData.contractInfo?.optimizationUsed,
-          sourceVerified: !!analysisData.contractCode,
-          deploymentBlock: analysisData.contractInfo?.deploymentBlock,
-          deploymentTimestamp: analysisData.contractInfo?.deploymentTimestamp,
-          creatorAddress: analysisData.contractInfo?.creatorAddress
-        },
-        analysisType: analysisData.analysisType || 'multi-agent',
-        agentsUsed: analysisData.metadata?.agentsUsed || [],
-        overallScore: this.validateScore(analysisData.overallScore),
-        riskLevel: this.validateRiskLevel(analysisData.riskLevel),
-        confidenceScore: this.validateConfidenceScore(analysisData.confidenceScore),
-        vulnerabilities: analysisData.vulnerabilities || [],
-        gasOptimizations: analysisData.gasOptimizations || [],
-        codeQuality: analysisData.codeQuality || {},
-        defiAnalysis: analysisData.defiAnalysis || {},
-        crossChainAnalysis: analysisData.crossChainAnalysis || {},
-        executionMetrics: {
-          totalExecutionTime: analysisData.metadata?.executionTime,
-          agentExecutionTimes: analysisData.metadata?.agentExecutionTimes || {},
-          memoryUsage: analysisData.metadata?.memoryUsage,
-          cpuUsage: analysisData.metadata?.cpuUsage,
-          apiCalls: analysisData.metadata?.apiCalls
-        },
-        metadata: {
-          analysisVersion: analysisData.metadata?.analysisVersion || '2.0.0',
-          modelVersions: analysisData.metadata?.modelVersions || {},
-          aggregationMethod: analysisData.metadata?.aggregationMethod,
-          userId,
-          userTier: analysisData.metadata?.userTier,
-          requestId: analysisData.metadata?.requestId,
-          ipAddress: analysisData.metadata?.ipAddress,
-          userAgent: analysisData.metadata?.userAgent
-        }
-      });
-
-      await auditResult.save();
-      logger.debug('Audit result saved to MongoDB', { auditId: analysisId });
-
-    } catch (error) {
-      logger.error('Failed to save audit result to MongoDB', {
-        error: error.message,
-        auditId: analysisId
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Save analytics event to MongoDB
+   * Save analytics event
    * @param {Object} eventData - Event data
    */
   async saveAnalyticsEvent(eventData) {
-    if (!this.mongoEnabled || !mongoDBService.isMongoConnected()) {
-      return;
-    }
-
     try {
-      const analyticsEvent = new AnalyticsEvent({
-        eventId: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      const analyticsData = {
+        user_id: eventData.userId,
+        event_type: eventData.eventType,
+        event_data: {
+          sessionId: eventData.sessionId,
+          contractAddress: eventData.contractAddress,
+          chain: eventData.chain,
+          ...eventData.data
+        }
+      };
+
+      const result = await this.supabase.logAnalytics(analyticsData);
+
+      if (!result.success) {
+        throw new Error(`Failed to save analytics: ${result.error}`);
+      }
+
+      logger.debug('Analytics event saved', {
         eventType: eventData.eventType,
-        userId: eventData.userId,
-        sessionId: eventData.sessionId,
-        contractAddress: eventData.contractAddress,
-        chain: eventData.chain,
-        eventData: eventData.data || {},
-        metrics: eventData.metrics || {},
-        userContext: eventData.userContext || {}
+        userId: eventData.userId
       });
 
-      await analyticsEvent.save();
-      logger.debug('Analytics event saved to MongoDB', { eventType: eventData.eventType });
-
     } catch (error) {
-      logger.error('Failed to save analytics event to MongoDB', {
+      logger.error('Failed to save analytics event', {
         error: error.message,
         eventType: eventData.eventType
       });
@@ -472,34 +399,38 @@ class DataPersistenceService {
   }
 
   /**
-   * Save monitoring data to MongoDB
+   * Save monitoring data
    * @param {Object} monitoringData - Monitoring data
    */
   async saveMonitoringData(monitoringData) {
-    if (!this.mongoEnabled || !mongoDBService.isMongoConnected()) {
-      return;
-    }
-
     try {
-      const monitoring = new MonitoringData({
-        contractAddress: monitoringData.contractAddress,
-        chain: monitoringData.chain,
-        blockNumber: monitoringData.blockNumber,
-        transactionHash: monitoringData.transactionHash,
-        eventType: monitoringData.eventType,
-        severity: monitoringData.severity || 'info',
-        data: monitoringData.data,
-        analysis: monitoringData.analysis || {}
-      });
+      const monitoringSessionData = {
+        contract_id: monitoringData.contractId,
+        user_id: monitoringData.userId,
+        session_type: monitoringData.eventType || 'general',
+        status: 'active',
+        config: {
+          blockNumber: monitoringData.blockNumber,
+          transactionHash: monitoringData.transactionHash,
+          eventData: monitoringData.data,
+          severity: monitoringData.severity || 'info',
+          analysis: monitoringData.analysis || {}
+        }
+      };
 
-      await monitoring.save();
-      logger.debug('Monitoring data saved to MongoDB', {
+      const result = await this.supabase.createMonitoringSession(monitoringSessionData);
+
+      if (!result.success) {
+        throw new Error(`Failed to save monitoring data: ${result.error}`);
+      }
+
+      logger.debug('Monitoring data saved', {
         contractAddress: monitoringData.contractAddress,
         eventType: monitoringData.eventType
       });
 
     } catch (error) {
-      logger.error('Failed to save monitoring data to MongoDB', {
+      logger.error('Failed to save monitoring data', {
         error: error.message,
         contractAddress: monitoringData.contractAddress
       });
@@ -510,7 +441,7 @@ class DataPersistenceService {
    * Helper methods
    */
   generateAnalysisId() {
-    return `analysis_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `analysis_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   }
 
   /**
@@ -561,6 +492,22 @@ class DataPersistenceService {
   validateRiskLevel(riskLevel) {
     const validLevels = ['Low', 'Medium', 'High', 'Critical'];
     return validLevels.includes(riskLevel) ? riskLevel : 'Medium';
+  }
+
+  /**
+   * Validate severity level
+   * @param {string} severity - Severity level
+   * @returns {string} Valid severity level
+   */
+  validateSeverity(severity) {
+    const validSeverities = ['critical', 'high', 'medium', 'low', 'info'];
+    const normalizedSeverity = typeof severity === 'string'
+      ? severity.toLowerCase()
+      : 'low';
+
+    return validSeverities.includes(normalizedSeverity)
+      ? normalizedSeverity
+      : 'low';
   }
 
   /**
@@ -653,7 +600,7 @@ class DataPersistenceService {
     return chainIds[chainName] || 0;
   }
 
-  calculateCreditsConsumed(activityType, activityData) {
+  calculateCreditsConsumed(activityType) {
     const creditCosts = {
       analysis_completed: 1,
       multi_agent_analysis: 3,

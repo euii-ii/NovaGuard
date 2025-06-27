@@ -3,14 +3,14 @@ const Joi = require('joi');
 const chainIDEIntegrationService = require('../services/chainIDEIntegrationService');
 const collaborativeWorkspaceManager = require('../services/collaborativeWorkspaceManager');
 const realTimeDevelopmentService = require('../services/realTimeDevelopmentService');
-const jwtAuth = require('../middleware/jwtAuth');
+const supabaseAuth = require('../middleware/supabaseAuth');
 const advancedRateLimiter = require('../middleware/advancedRateLimiter');
 const logger = require('../utils/logger');
 
 const router = express.Router();
 
 // Apply authentication and rate limiting
-router.use(jwtAuth.optionalAuth);
+router.use(supabaseAuth.optionalAuth);
 router.use(advancedRateLimiter.createRateLimitMiddleware());
 
 // Validation schemas
@@ -83,8 +83,8 @@ router.get('/status', (req, res) => {
  * POST /api/v1/chainide/workspaces
  * Create a new collaborative workspace
  */
-router.post('/workspaces', 
-  jwtAuth.authenticate,
+router.post('/workspaces',
+  supabaseAuth.authenticate,
   async (req, res) => {
     try {
       const { error, value } = workspaceCreateSchema.validate(req.body);
@@ -135,7 +135,7 @@ router.post('/workspaces',
  * Join a collaborative workspace
  */
 router.post('/workspaces/:workspaceId/join',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   async (req, res) => {
     try {
       const { workspaceId } = req.params;
@@ -183,7 +183,7 @@ router.post('/workspaces/:workspaceId/join',
  * Real-time code analysis
  */
 router.post('/code/analyze',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   async (req, res) => {
     try {
       const { error, value } = codeChangeSchema.validate(req.body);
