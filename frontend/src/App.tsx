@@ -52,28 +52,11 @@ interface NetworkOption {
 }
 
 function App() {
-  console.log('App component rendering...');
-
-  // Get Clerk authentication with error handling
-  let getToken: (() => Promise<string | null>) | undefined;
-  let userId: string | null = null;
-
-  try {
-    const auth = useAuth();
-    getToken = auth.getToken;
-    console.log('Clerk auth loaded successfully');
-  } catch (error) {
-    console.error('Error loading Clerk auth:', error);
-  }
+  // Get Clerk authentication
+  const { getToken } = useAuth();
 
   // Initialize Supabase auth integration with Clerk
-  try {
-    const supabaseAuth = useSupabaseAuth();
-    userId = supabaseAuth.userId;
-    console.log('Supabase auth initialized:', { userId: userId ? 'Present' : 'None' });
-  } catch (error) {
-    console.error('Error loading Supabase auth:', error);
-  }
+  const { userId } = useSupabaseAuth();
 
   const [currentView, setCurrentView] = useState<'dashboard' | 'templates' | 'ide' | 'vulnerability'>('dashboard');
 
@@ -83,11 +66,7 @@ function App() {
       try {
         progressCallback?.(10, 'initializing');
 
-        // Get auth token with error handling
-        if (!getToken) {
-          throw new Error('Authentication not available');
-        }
-
+        // Get auth token
         const token = await getToken();
         if (!token) {
           throw new Error('Authentication required');
@@ -106,121 +85,78 @@ function App() {
 
         progressCallback?.(30, 'starting analysis');
 
-        // Call the backend audit API (with fallback for demo)
-        let auditResult: any;
-        try {
-          const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
-          const response = await fetch(`${apiUrl}/api/audit/address`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(auditRequest)
-          });
+        // Call the backend audit API
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/audit/address`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(auditRequest)
+        });
 
-          if (!response.ok) {
-            throw new Error('API request failed');
-          }
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Audit request failed');
+        }
 
-          auditResult = await response.json();
+        const auditResult = await response.json();
 
-          if (!auditResult.success) {
-            throw new Error(auditResult.error || 'Audit failed');
-          }
-        } catch (apiError) {
-          console.warn('Backend API not available, using demo data:', apiError);
-
-          // Simulate progress and return demo result
-          progressCallback?.(90, 'completing analysis');
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          progressCallback?.(100, 'complete');
-
-          // Return demo audit result for testing
-          return {
-            vulnerabilities: [
-              {
-                name: "Demo Vulnerability",
-                affectedLines: "1-10",
-                description: "This is a demo vulnerability for testing purposes. Backend API is not available.",
-                severity: "medium",
-                fixSuggestion: "This is demo data - deploy backend functions to get real analysis."
-              }
-            ],
-            securityScore: 75,
-            riskCategory: {
-              label: "medium",
-              justification: "Demo data - backend not deployed"
-            },
-            codeInsights: {
-              gasOptimizationTips: ["Demo: Backend API not available - upgrade to Blaze plan to deploy functions"],
-              antiPatternNotices: ["Demo: This is test data"],
-              dangerousUsage: ["Demo: Backend functions not deployed"]
-            }
-          };
+        if (!auditResult.success) {
+          throw new Error(auditResult.error || 'Audit failed');
         }
 
         progressCallback?.(50, 'analyzing');
 
-        // Poll for results (only if we have a real API response)
-        if (auditResult && auditResult.auditId) {
-          const auditId = auditResult.auditId;
-          let attempts = 0;
-          const maxAttempts = 30; // 30 seconds timeout
+        // Poll for results
+        const auditId = auditResult.auditId;
+        let attempts = 0;
+        const maxAttempts = 30; // 30 seconds timeout
 
-          while (attempts < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            attempts++;
+        while (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          attempts++;
 
-            const progress = 50 + (attempts / maxAttempts) * 40;
-            progressCallback?.(progress, 'analyzing');
+          const progress = 50 + (attempts / maxAttempts) * 40;
+          progressCallback?.(progress, 'analyzing');
 
-            try {
-              // Check audit status
-              const statusResponse = await fetch(`${apiUrl}/api/audit/results/${auditId}`, {
-                headers: {
-                  'Authorization': `Bearer ${token}`
+          // Check audit status
+          const statusResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/audit/results/${auditId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+
+          if (statusResponse.ok) {
+            const statusData = await statusResponse.json();
+
+            if (statusData.success && statusData.data && statusData.data.status === 'completed') {
+              progressCallback?.(100, 'completed');
+
+              // Transform backend response to frontend format
+              return {
+                success: true,
+                data: {
+                  scanId: auditId,
+                  contractAddress: request.contractAddress,
+                  networkId: request.networkId,
+                  vulnerabilities: statusData.data.vulnerabilities || [],
+                  gasOptimizations: statusData.data.gasOptimizations || [],
+                  securityScore: statusData.data.securityScore || 0,
+                  riskLevel: statusData.data.riskCategory?.label || 'Unknown',
+                  complianceChecks: statusData.data.complianceChecks || {},
+                  summary: {
+                    overallRisk: statusData.data.riskCategory?.label || 'Unknown',
+                    totalVulnerabilities: (statusData.data.vulnerabilities || []).length,
+                    gasOptimizationSavings: statusData.data.gasOptimizations?.reduce((total: number, opt: any) => total + (opt.savings || 0), 0) || 0
+                  }
                 }
-              });
-
-              if (statusResponse.ok) {
-                const statusData = await statusResponse.json();
-
-                if (statusData.success && statusData.data && statusData.data.status === 'completed') {
-                  progressCallback?.(100, 'completed');
-
-                  // Transform backend response to frontend format
-                  return {
-                    success: true,
-                    data: {
-                      scanId: auditId,
-                      contractAddress: request.contractAddress,
-                      networkId: request.networkId,
-                      vulnerabilities: statusData.data.vulnerabilities || [],
-                      gasOptimizations: statusData.data.gasOptimizations || [],
-                      securityScore: statusData.data.securityScore || 0,
-                      riskLevel: statusData.data.riskCategory?.label || 'Unknown',
-                      complianceChecks: statusData.data.complianceChecks || {},
-                      summary: {
-                        overallRisk: statusData.data.riskCategory?.label || 'Unknown',
-                        totalVulnerabilities: (statusData.data.vulnerabilities || []).length,
-                        gasOptimizationSavings: statusData.data.gasOptimizations?.reduce((total: number, opt: any) => total + (opt.savings || 0), 0) || 0
-                      }
-                    }
-                  };
-                }
-              }
-            } catch (statusError) {
-              console.warn('Status check failed:', statusError);
-              // Continue polling
+              };
             }
           }
-
-          throw new Error('Analysis timeout - please try again');
-        } else {
-          // No audit ID, return error
-          throw new Error('Invalid audit response');
         }
+
+        throw new Error('Analysis timeout - please try again');
 
       } catch (error) {
         console.error('Vulnerability scan error:', error);
@@ -251,8 +187,7 @@ function App() {
           return;
         }
 
-        const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
-        const response = await fetch(`${apiUrl}/api/v1/realtime/session/start`, {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/realtime/session/start`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -297,8 +232,7 @@ function App() {
 
         for (const service of services) {
           try {
-            const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
-            const response = await fetch(`${apiUrl}${service.endpoint}`, {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}${service.endpoint}`, {
               headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -327,8 +261,7 @@ function App() {
         }
 
         // Simulate compilation process with real-time validation
-        const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
-        const response = await fetch(`${apiUrl}/api/v1/realtime/validation`, {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/realtime/validation`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -440,44 +373,8 @@ function App() {
           }));
           setProjects(normalizedProjects);
         } catch (error) {
-          console.error('Failed to load projects, using demo data:', error);
-          // Fallback to demo projects when API is not available
-          const demoProjects: Project[] = [
-            {
-              id: 'demo-1',
-              name: 'DeFi Token Contract',
-              description: 'ERC-20 token with advanced DeFi features',
-              user_id: userId,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              project_data: { template: 'erc20', network: 'ethereum' },
-              status: 'active',
-              type: 'contract'
-            },
-            {
-              id: 'demo-2',
-              name: 'NFT Marketplace',
-              description: 'ERC-721 marketplace with royalty features',
-              user_id: userId,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              project_data: { template: 'erc721', network: 'polygon' },
-              status: 'active',
-              type: 'contract'
-            },
-            {
-              id: 'demo-3',
-              name: 'Staking Contract',
-              description: 'Token staking with rewards distribution',
-              user_id: userId,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              project_data: { template: 'staking', network: 'arbitrum' },
-              status: 'active',
-              type: 'contract'
-            }
-          ];
-          setProjects(demoProjects);
+          console.error('Failed to load projects:', error);
+          setProjects([]);
         }
       } else {
         setProjects([]);
@@ -3788,12 +3685,9 @@ contract ${cleanFileName.replace('.sol', '').replace(/[^a-zA-Z0-9]/g, '')} {
     );
   };
 
-  // Main app return - temporarily bypass authentication for demo
+  // Main app return with authentication wrapper
   return (
     <>
-      {/* Temporarily show main content without authentication for demo */}
-      {renderMainContent()}
-
       <SignedOut>
         <div className="auth-container">
           <div className="auth-card">
@@ -3835,7 +3729,6 @@ contract ${cleanFileName.replace('.sol', '').replace(/[^a-zA-Z0-9]/g, '')} {
       <SignedIn>
         {renderMainContent()}
       </SignedIn>
-    
     </>
   );
 }
