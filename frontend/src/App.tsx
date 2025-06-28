@@ -436,8 +436,44 @@ function App() {
           }));
           setProjects(normalizedProjects);
         } catch (error) {
-          console.error('Failed to load projects:', error);
-          setProjects([]);
+          console.error('Failed to load projects, using demo data:', error);
+          // Fallback to demo projects when API is not available
+          const demoProjects: Project[] = [
+            {
+              id: 'demo-1',
+              name: 'DeFi Token Contract',
+              description: 'ERC-20 token with advanced DeFi features',
+              user_id: userId,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              project_data: { template: 'erc20', network: 'ethereum' },
+              status: 'active',
+              type: 'contract'
+            },
+            {
+              id: 'demo-2',
+              name: 'NFT Marketplace',
+              description: 'ERC-721 marketplace with royalty features',
+              user_id: userId,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              project_data: { template: 'erc721', network: 'polygon' },
+              status: 'active',
+              type: 'contract'
+            },
+            {
+              id: 'demo-3',
+              name: 'Staking Contract',
+              description: 'Token staking with rewards distribution',
+              user_id: userId,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              project_data: { template: 'staking', network: 'arbitrum' },
+              status: 'active',
+              type: 'contract'
+            }
+          ];
+          setProjects(demoProjects);
         }
       } else {
         setProjects([]);

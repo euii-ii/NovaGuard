@@ -113,8 +113,8 @@ contract ${projectData.name.replace(/\s+/g, '')} {
       })
 
       if (!response.ok) {
-        console.error('Failed to fetch projects:', response.statusText)
-        return []
+        console.warn('Backend API not available, will use demo data')
+        throw new Error('API not available')
       }
 
       const result = await response.json()
@@ -137,8 +137,9 @@ contract ${projectData.name.replace(/\s+/g, '')} {
 
       return []
     } catch (error) {
-      console.error('Error fetching projects:', error)
-      return []
+      console.warn('Error fetching projects, backend not available:', error)
+      // Throw error so App.tsx can handle with demo data
+      throw error
     }
   }
 
