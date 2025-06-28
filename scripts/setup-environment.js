@@ -28,9 +28,9 @@ const environments = {
       PORT: '3001',
       NODE_ENV: 'development',
       // OpenRouter API Configuration
-      OPENROUTER_API_KEY_KIMI: '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',
+      OPENROUTER_API_KEY_KIMI: 'your-openrouter-api-key-here',
       KIMI_MODEL: 'moonshot/kimi-dev-72b',
-      OPENROUTER_API_KEY_GEMMA: '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',
+      OPENROUTER_API_KEY_GEMMA: 'your-openrouter-api-key-here',
       GEMMA_MODEL: 'google/gemma-2-3b-it',
       OPENROUTER_BASE_URL: 'https://openrouter.ai/api/v1',
       DEFAULT_MODEL_STRATEGY: 'dual',

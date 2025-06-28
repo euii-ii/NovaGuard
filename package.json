@@ -31,7 +31,13 @@
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
     "vercel:build": "npm run install:all && npm run build:frontend",
-    "vercel:dev": "npm run dev:frontend"
+    "vercel:dev": "npm run dev:frontend",
+    "firebase:build": "npm run build:frontend && cd functions && npm run build",
+    "firebase:deploy": "firebase deploy",
+    "firebase:deploy:hosting": "firebase deploy --only hosting",
+    "firebase:deploy:functions": "firebase deploy --only functions",
+    "firebase:serve": "firebase emulators:start",
+    "firebase:init": "firebase init"
   },
   "devDependencies": {
     "@rollup/rollup-win32-x64-msvc": "^4.44.1",
