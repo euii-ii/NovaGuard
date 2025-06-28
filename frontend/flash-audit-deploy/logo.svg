@@ -1,9 +1,0 @@
-<svg width="120" height="40" viewBox="0 0 120 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Shield icon -->
-  <path d="M8 6L16 2L24 6V18C24 26 16 32 16 32C16 32 8 26 8 18V6Z" fill="#0b48ed" stroke="#ffffff" stroke-width="1"/>
-  <path d="M12 12L16 16L20 12" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  
-  <!-- Text -->
-  <text x="30" y="16" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#ffffff">NovaGard</text>
-  <text x="30" y="28" font-family="Arial, sans-serif" font-size="8" fill="#cccccc">Smart Contract Security</text>
-</svg>
