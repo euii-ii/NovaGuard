@@ -29,7 +29,9 @@
     "docker:build": "docker-compose build",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
-    "docker:logs": "docker-compose logs -f"
+    "docker:logs": "docker-compose logs -f",
+    "vercel:build": "npm run install:all && npm run build:frontend",
+    "vercel:dev": "npm run dev:frontend"
   },
   "devDependencies": {
     "@rollup/rollup-win32-x64-msvc": "^4.44.1",
