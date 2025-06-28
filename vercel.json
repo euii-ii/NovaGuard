@@ -48,10 +48,10 @@
     }
   ],
   "env": {
-    "VITE_CLERK_PUBLISHABLE_KEY": "@clerk_publishable_key",
+    "VITE_CLERK_PUBLISHABLE_KEY": "@vite_clerk_publishable_key",
     "CLERK_SECRET_KEY": "@clerk_secret_key",
     "SUPABASE_URL": "@supabase_url",
-    "SUPABASE_ANON_KEY": "@supabase_anon_key", 
+    "SUPABASE_ANON_KEY": "@supabase_anon_key",
     "SUPABASE_SERVICE_ROLE_KEY": "@supabase_service_role_key",
     "OPENROUTER_API_KEY": "@openrouter_api_key",
     "NODE_ENV": "production"

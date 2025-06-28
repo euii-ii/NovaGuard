@@ -3794,7 +3794,6 @@ contract ${cleanFileName.replace('.sol', '').replace(/[^a-zA-Z0-9]/g, '')} {
       {/* Temporarily show main content without authentication for demo */}
       {renderMainContent()}
 
-      {/* Authentication wrapper - commented out for demo
       <SignedOut>
         <div className="auth-container">
           <div className="auth-card">
@@ -3836,7 +3835,7 @@ contract ${cleanFileName.replace('.sol', '').replace(/[^a-zA-Z0-9]/g, '')} {
       <SignedIn>
         {renderMainContent()}
       </SignedIn>
-      */}
+    
     </>
   );
 }
