@@ -5,14 +5,14 @@ const instantFeedbackService = require('../services/instantFeedbackService');
 const liveVulnerabilityDetector = require('../services/liveVulnerabilityDetector');
 const codeCompletionEngine = require('../services/codeCompletionEngine');
 const syntaxValidationService = require('../services/syntaxValidationService');
-const jwtAuth = require('../middleware/jwtAuth');
+const supabaseAuth = require('../middleware/supabaseAuth');
 const advancedRateLimiter = require('../middleware/advancedRateLimiter');
 const logger = require('../utils/logger');
 
 const router = express.Router();
 
 // Apply authentication and rate limiting
-router.use(jwtAuth.optionalAuth);
+router.use(supabaseAuth.optionalAuth);
 router.use(advancedRateLimiter.createRateLimitMiddleware());
 
 // Validation schemas
@@ -69,7 +69,7 @@ const preferencesSchema = Joi.object({
  * Process code change and provide real-time analysis
  */
 router.post('/code/analyze',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   async (req, res) => {
     try {
       const { error, value } = codeChangeSchema.validate(req.body);
@@ -111,7 +111,7 @@ router.post('/code/analyze',
  * Get code completion suggestions
  */
 router.post('/completion',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   async (req, res) => {
     try {
       const { error, value } = completionRequestSchema.validate(req.body);
@@ -154,7 +154,7 @@ router.post('/completion',
  * Validate Solidity syntax
  */
 router.post('/validate',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   async (req, res) => {
     try {
       const { error, value } = validationRequestSchema.validate(req.body);
@@ -196,7 +196,7 @@ router.post('/validate',
  * Start a development session
  */
 router.post('/session/start',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   async (req, res) => {
     try {
       const { error, value } = sessionConfigSchema.validate(req.body);
@@ -246,7 +246,7 @@ router.post('/session/start',
  * End a development session
  */
 router.post('/session/end',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   async (req, res) => {
     try {
       realTimeDevelopmentService.endDevelopmentSession(req.user.id);
@@ -280,7 +280,7 @@ router.post('/session/end',
  * Set user preferences for real-time features
  */
 router.post('/preferences',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   async (req, res) => {
     try {
       const { error, value } = preferencesSchema.validate(req.body);
@@ -409,7 +409,7 @@ router.get('/capabilities', (req, res) => {
  * Get real-time development metrics
  */
 router.get('/metrics',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   (req, res) => {
     try {
       const status = realTimeDevelopmentService.getStatus();

@@ -3,11 +3,10 @@
   "version": "2.0.0",
   "description": "Full-stack DAO Smart Contract Security Auditor with AI-powered analysis",
   "private": true,
-
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:frontend": "cd frontend && npm run dev",
-    "dev:backend": "cd backend && npm run dev",
+    "dev:backend": "cd backend && npm start",
     "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
     "start:frontend": "cd frontend && npm run build && npm run preview",
     "start:backend": "cd backend && npm start",
@@ -33,6 +32,7 @@
     "docker:logs": "docker-compose logs -f"
   },
   "devDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.44.1",
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3"
   },

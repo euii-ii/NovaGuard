@@ -226,7 +226,7 @@ router.post('/code/analyze',
  * Update file in workspace
  */
 router.post('/workspaces/:workspaceId/files',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   async (req, res) => {
     try {
       const { workspaceId } = req.params;
@@ -272,7 +272,7 @@ router.post('/workspaces/:workspaceId/files',
  * Add comment to workspace
  */
 router.post('/workspaces/:workspaceId/comments',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   async (req, res) => {
     try {
       const { workspaceId } = req.params;
@@ -318,7 +318,7 @@ router.post('/workspaces/:workspaceId/comments',
  * Get workspace statistics
  */
 router.get('/workspaces/:workspaceId/stats',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   (req, res) => {
     try {
       const { workspaceId } = req.params;
@@ -355,7 +355,7 @@ router.get('/workspaces/:workspaceId/stats',
  * Set user preferences for real-time features
  */
 router.post('/preferences',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   (req, res) => {
     try {
       const preferences = req.body;

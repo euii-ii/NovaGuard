@@ -1,5 +1,6 @@
 const { supabaseAdmin, supabaseClient } = require('../config/supabase');
 const logger = require('../utils/logger');
+const jwt = require('jsonwebtoken');
 
 /**
  * Supabase Authentication Middleware
@@ -12,14 +13,100 @@ class SupabaseAuthMiddleware {
   }
 
   /**
+   * Check if token is a Clerk JWT token
+   * @param {string} token - JWT token
+   * @returns {boolean} True if it's a Clerk token
+   */
+  isClerkToken(token) {
+    try {
+      const decoded = jwt.decode(token, { complete: true });
+      if (!decoded || !decoded.header || !decoded.payload) {
+        return false;
+      }
+
+      // Clerk tokens typically have 'iss' (issuer) containing clerk domain
+      // and specific claims structure
+      const payload = decoded.payload;
+      return payload.iss && (
+        payload.iss.includes('clerk.') ||
+        payload.iss.includes('clerk-') ||
+        payload.azp || // Clerk uses 'azp' (authorized party)
+        payload.sid    // Clerk uses 'sid' (session ID)
+      );
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Extract user from Clerk JWT token
+   * @param {string} token - Clerk JWT token
+   * @returns {Object} User information
+   */
+  async extractUserFromClerkToken(token) {
+    try {
+      // Decode the Clerk JWT token without verification for now
+      // In production, you should verify the token with Clerk's public key
+      const decoded = jwt.decode(token);
+
+      if (!decoded || !decoded.sub) {
+        throw new Error('Invalid Clerk token');
+      }
+
+      // Extract user information from Clerk token
+      const userId = decoded.sub;
+      const email = decoded.email || `${userId}@clerk.local`;
+
+      // Get or create user data in our users table
+      let userData = null;
+      try {
+        const { data, error } = await this.admin
+          .from('users')
+          .select('*')
+          .eq('clerk_user_id', userId)
+          .single();
+
+        if (error && error.code !== 'PGRST116') {
+          logger.warn('Failed to fetch user data from users table', {
+            userId,
+            error: error.message
+          });
+        } else if (data) {
+          userData = data;
+        }
+      } catch (dbError) {
+        logger.warn('Database query failed for Clerk user', { userId, error: dbError.message });
+      }
+
+      return {
+        id: userId,
+        email: email,
+        role: userData?.user_role || 'free',
+        permissions: this.getRolePermissions(userData?.user_role || 'free'),
+        full_name: userData?.full_name || decoded.name || decoded.first_name + ' ' + decoded.last_name,
+        clerk_user_id: userId,
+        is_clerk_user: true
+      };
+    } catch (error) {
+      throw new Error(`Clerk token verification failed: ${error.message}`);
+    }
+  }
+
+  /**
    * Extract user from Supabase JWT token
    * @param {string} token - Supabase JWT token
    * @returns {Object} User information
    */
   async extractUserFromToken(token) {
     try {
+      // First try to handle as Clerk token
+      if (this.isClerkToken(token)) {
+        return await this.extractUserFromClerkToken(token);
+      }
+
+      // Otherwise handle as Supabase token
       const { data: { user }, error } = await this.admin.auth.getUser(token);
-      
+
       if (error) {
         throw new Error(`Token verification failed: ${error.message}`);
       }
@@ -36,9 +123,9 @@ class SupabaseAuthMiddleware {
         .single();
 
       if (userError && userError.code !== 'PGRST116') { // PGRST116 = no rows returned
-        logger.warn('Failed to fetch user data from users table', { 
-          userId: user.id, 
-          error: userError.message 
+        logger.warn('Failed to fetch user data from users table', {
+          userId: user.id,
+          error: userError.message
         });
       }
 

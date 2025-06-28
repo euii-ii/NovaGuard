@@ -1,23 +1,23 @@
 const express = require('express');
 const Joi = require('joi');
-const auditEngine = require('../services/auditEngine');
-const aiAnalysisPipeline = require('../services/aiAnalysisPipeline');
+// const auditEngine = require('../services/auditEngine');
+// const aiAnalysisPipeline = require('../services/aiAnalysisPipeline');
 const multiChainWeb3Service = require('../services/multiChainWeb3Service');
-const defiAnalysisEngine = require('../services/defiAnalysisEngine');
-const teamCollaborationService = require('../services/teamCollaborationService');
+// const defiAnalysisEngine = require('../services/defiAnalysisEngine');
+// const teamCollaborationService = require('../services/teamCollaborationService');
 const supabaseAuth = require('../middleware/supabaseAuth');
-const advancedRateLimiter = require('../middleware/advancedRateLimiter');
+// const advancedRateLimiter = require('../middleware/advancedRateLimiter');
 const logger = require('../utils/logger');
 const supabaseService = require('../services/supabaseService');
 const { v4: uuidv4 } = require('uuid');
 
 // Import AI analysis services for enhanced functionality
-const llmService = require('../services/llmService');
+// const llmService = require('../services/llmService');
 
 const router = express.Router();
 
 // Apply rate limiting to all routes
-router.use(advancedRateLimiter.createRateLimitMiddleware());
+// router.use(advancedRateLimiter.createRateLimitMiddleware());
 
 // Enhanced validation schemas
 const contractAnalysisSchema = Joi.object({

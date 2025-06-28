@@ -10,9 +10,6 @@ class MultiChainWeb3Service {
   constructor() {
     this.startTime = Date.now();
     this.providers = {};
-    this.startTime = Date.now();
-    this.providers = {};
-    this.providers = {};
     this.explorerAPIs = {};
     this.cache = new Map();
     this.chainConfigs = this.initializeChainConfigs();

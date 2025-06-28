@@ -9,18 +9,18 @@ dotenv.config();
 
 // Import Supabase-based controllers and services
 const unifiedAuditController = require('./controllers/auditController');
-const chainIDEController = require('./controllers/chainIDEController');
-const realTimeDevelopmentController = require('./controllers/realTimeDevelopmentController');
-const collaborativeToolsController = require('./controllers/collaborativeToolsController');
-const pitchController = require('./controllers/pitchController');
-const monitoringController = require('./controllers/monitoringController');
+// const chainIDEController = require('./controllers/chainIDEController');
+// const realTimeDevelopmentController = require('./controllers/realTimeDevelopmentController');
+// const collaborativeToolsController = require('./controllers/collaborativeToolsController');
+// const pitchController = require('./controllers/pitchController');
+// const monitoringController = require('./controllers/monitoringController');
 const supabaseService = require('./services/supabaseService');
-const supabaseAuth = require('./middleware/supabaseAuth');
+// const supabaseAuth = require('./middleware/supabaseAuth');
 const logger = require('./utils/logger');
 
 // Import existing services that we still need
-const realTimeMonitoringService = require('./services/realTimeMonitoringService');
-const analyticsService = require('./services/analyticsService');
+// const realTimeMonitoringService = require('./services/realTimeMonitoringService');
+// const analyticsService = require('./services/analyticsService');
 
 // Initialize Express app
 const app = express();
@@ -327,10 +327,10 @@ async function gracefulShutdown(signal) {
   
   try {
     // Stop real-time monitoring if running
-    if (realTimeMonitoringService.isRunning) {
-      await realTimeMonitoringService.stopMonitoring();
-      logger.info('Real-time monitoring stopped');
-    }
+    // if (realTimeMonitoringService.isRunning) {
+    //   await realTimeMonitoringService.stopMonitoring();
+    //   logger.info('Real-time monitoring stopped');
+    // }
 
     logger.info('Graceful shutdown completed');
     process.exit(0);

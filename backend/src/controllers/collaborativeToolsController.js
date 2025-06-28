@@ -4,14 +4,14 @@ const teamCollaborationService = require('../services/teamCollaborationService')
 const realTimeCodeReviewService = require('../services/realTimeCodeReviewService');
 const sharedWorkspaceAnalytics = require('../services/sharedWorkspaceAnalytics');
 const collaborativeWorkspaceManager = require('../services/collaborativeWorkspaceManager');
-const jwtAuth = require('../middleware/jwtAuth');
+const supabaseAuth = require('../middleware/supabaseAuth');
 const advancedRateLimiter = require('../middleware/advancedRateLimiter');
 const logger = require('../utils/logger');
 
 const router = express.Router();
 
 // Apply authentication and rate limiting
-router.use(jwtAuth.optionalAuth);
+router.use(supabaseAuth.optionalAuth);
 router.use(advancedRateLimiter.createRateLimitMiddleware());
 
 // Validation schemas
@@ -77,7 +77,7 @@ const realtimeReviewSchema = Joi.object({
  * Create a new team
  */
 router.post('/teams',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   async (req, res) => {
     try {
       const { error, value } = teamCreateSchema.validate(req.body);
@@ -138,7 +138,7 @@ router.post('/teams',
  * Start team analysis session
  */
 router.post('/teams/:teamId/analysis',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   async (req, res) => {
     try {
       const { teamId } = req.params;
@@ -197,7 +197,7 @@ router.post('/teams/:teamId/analysis',
  * Start code review session
  */
 router.post('/teams/:teamId/reviews',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   async (req, res) => {
     try {
       const { teamId } = req.params;
@@ -259,7 +259,7 @@ router.post('/teams/:teamId/reviews',
  * Add comment to code review
  */
 router.post('/reviews/:reviewId/comments',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   async (req, res) => {
     try {
       const { reviewId } = req.params;
@@ -313,7 +313,7 @@ router.post('/reviews/:reviewId/comments',
  * Submit review decision
  */
 router.post('/reviews/:reviewId/decision',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   async (req, res) => {
     try {
       const { reviewId } = req.params;
@@ -366,7 +366,7 @@ router.post('/reviews/:reviewId/decision',
  * Start real-time code review session
  */
 router.post('/realtime-reviews',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   async (req, res) => {
     try {
       const { error, value } = realtimeReviewSchema.validate(req.body);
@@ -423,7 +423,7 @@ router.post('/realtime-reviews',
  * Join real-time review session
  */
 router.post('/realtime-reviews/:sessionId/join',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   async (req, res) => {
     try {
       const { sessionId } = req.params;
@@ -470,7 +470,7 @@ router.post('/realtime-reviews/:sessionId/join',
  * Get workspace analytics
  */
 router.get('/workspaces/:workspaceId/analytics',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   async (req, res) => {
     try {
       const { workspaceId } = req.params;
@@ -527,7 +527,7 @@ router.get('/workspaces/:workspaceId/analytics',
  * Get real-time workspace metrics
  */
 router.get('/workspaces/:workspaceId/realtime-metrics',
-  jwtAuth.authenticate,
+  supabaseAuth.authenticate,
   (req, res) => {
     try {
       const { workspaceId } = req.params;
