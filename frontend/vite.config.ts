@@ -9,7 +9,7 @@ export default defineConfig({
     open: '/landing.html', // Open landing page by default
     proxy: {
       '/api': {
-        target: 'http://localhost:3002',
+        target: process.env.VITE_API_BASE_URL || 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
       }
@@ -18,10 +18,18 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        main: 'landing.html', // Landing page as main entry
-        app: 'react_app.html' // React app
+        main: 'index.html', // Main entry point
+        landing: 'landing.html' // Landing page
       }
-    }
+    },
+    outDir: 'dist',
+    sourcemap: false,
+    minify: 'esbuild',
+    target: 'es2015',
+    emptyOutDir: true
   },
-  publicDir: 'public'
+  publicDir: 'public',
+  define: {
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
+  }
 })

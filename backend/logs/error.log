@@ -4909,3 +4909,5 @@
 2025-06-21 18:37:33.051 [ERROR]: Unable to connect to database {"service":"smart-contract-auditor","environment":"development","error":"Maximum call stack size exceeded"}
 2025-06-21 18:51:26.717 [ERROR]: Unable to connect to database {"service":"smart-contract-auditor","environment":"development","error":"Maximum call stack size exceeded"}
 2025-06-21 19:00:11.253 [ERROR]: Unable to connect to database {"service":"smart-contract-auditor","environment":"development","error":"Maximum call stack size exceeded"}
+2025-06-28 17:03:44.627 [ERROR]: Failed to get audit history {"service":"smart-contract-auditor","environment":"development","error":"auditEngine is not defined","userId":"user_2z8Q5QntgnrKZCDlHA2MikmkcN2"}
+2025-06-28 17:19:40.045 [ERROR]: Failed to get audit history {"service":"smart-contract-auditor","environment":"development","error":"auditEngine is not defined","userId":"user_2z8Q5QntgnrKZCDlHA2MikmkcN2"}

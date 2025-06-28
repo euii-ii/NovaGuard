@@ -39419,3 +39419,32 @@ null
 null
 null
 null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+null
+2025-06-28 17:03:44.627 [ERROR]: Failed to get audit history {"service":"smart-contract-auditor","environment":"development","error":"auditEngine is not defined","userId":"user_2z8Q5QntgnrKZCDlHA2MikmkcN2"}
+null
+null
+null
+2025-06-28 17:19:40.045 [ERROR]: Failed to get audit history {"service":"smart-contract-auditor","environment":"development","error":"auditEngine is not defined","userId":"user_2z8Q5QntgnrKZCDlHA2MikmkcN2"}
+null
+null
+null
+null
+null
+null
+null

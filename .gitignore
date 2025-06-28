@@ -120,3 +120,4 @@ temp/
 # Package lock files (optional - uncomment if you want to ignore them)
 # package-lock.json
 # yarn.lock
+.vercel
