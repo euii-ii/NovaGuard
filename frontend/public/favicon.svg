@@ -1,0 +1,6 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Shield icon for favicon -->
+  <path d="M4 3L16 1L28 3V16C28 24 16 30 16 30C16 30 4 24 4 16V3Z" fill="#0b48ed" stroke="#ffffff" stroke-width="1"/>
+  <path d="M10 10L16 16L22 10" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="16" cy="20" r="2" fill="#ffffff"/>
+</svg>
