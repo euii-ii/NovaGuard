@@ -136,14 +136,14 @@ app.use('/api/v1/user', unifiedAuditController);
 app.use('/api/v1/auth', unifiedAuditController);
 
 // Update other controllers to use Supabase auth
-app.use('/api/v1/chainide', chainIDEController);
-app.use('/api/v1/realtime', realTimeDevelopmentController);
-app.use('/api/v1/collaboration', collaborativeToolsController);
-app.use('/api/pitch', pitchController);
+// app.use('/api/v1/chainide', chainIDEController);
+// app.use('/api/v1/realtime', realTimeDevelopmentController);
+// app.use('/api/v1/collaboration', collaborativeToolsController);
+// app.use('/api/pitch', pitchController);
 
 // Monitoring routes
-app.get('/api/contracts/:id/monitoring', monitoringController.getMonitoringEvents);
-app.post('/api/contracts/:id/monitoring/flag', monitoringController.flagMonitoringEvent);
+// app.get('/api/contracts/:id/monitoring', monitoringController.getMonitoringEvents);
+// app.post('/api/contracts/:id/monitoring/flag', monitoringController.flagMonitoringEvent);
 
 // Legacy monitoring endpoints (still using existing services)
 app.post('/api/v1/monitoring/start', async (req, res) => {
