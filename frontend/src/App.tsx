@@ -109,7 +109,8 @@ function App() {
         // Call the backend audit API (with fallback for demo)
         let auditResult: any;
         try {
-          const response = await fetch(`${import.meta.env.VITE_API_URL}/api/audit/address`, {
+          const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
+          const response = await fetch(`${apiUrl}/api/audit/address`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -176,7 +177,7 @@ function App() {
 
             try {
               // Check audit status
-              const statusResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/audit/results/${auditId}`, {
+              const statusResponse = await fetch(`${apiUrl}/api/audit/results/${auditId}`, {
                 headers: {
                   'Authorization': `Bearer ${token}`
                 }
@@ -250,7 +251,8 @@ function App() {
           return;
         }
 
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/realtime/session/start`, {
+        const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
+        const response = await fetch(`${apiUrl}/api/v1/realtime/session/start`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -295,7 +297,8 @@ function App() {
 
         for (const service of services) {
           try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL}${service.endpoint}`, {
+            const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
+            const response = await fetch(`${apiUrl}${service.endpoint}`, {
               headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -324,7 +327,8 @@ function App() {
         }
 
         // Simulate compilation process with real-time validation
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/realtime/validation`, {
+        const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
+        const response = await fetch(`${apiUrl}/api/v1/realtime/validation`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

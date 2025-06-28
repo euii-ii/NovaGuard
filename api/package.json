@@ -4,6 +4,7 @@
   "description": "Flash Audit API serverless functions for Vercel",
   "main": "index.js",
   "dependencies": {
+    "@clerk/clerk-sdk-node": "^4.13.14",
     "@supabase/supabase-js": "^2.50.2",
     "axios": "^1.6.2"
   },

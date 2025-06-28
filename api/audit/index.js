@@ -1,5 +1,6 @@
 // Vercel serverless function for audit endpoints
 const axios = require('axios');
+const { withAuth } = require('../middleware/auth');
 
 // CORS headers helper
 const setCorsHeaders = (res) => {
@@ -140,7 +141,7 @@ const analyzeContract = async (contractCode, options = {}) => {
   }
 };
 
-module.exports = async (req, res) => {
+const auditHandler = async (req, res) => {
   setCorsHeaders(res);
 
   if (req.method === 'OPTIONS') {
@@ -154,20 +155,34 @@ module.exports = async (req, res) => {
 
   try {
     const { contractCode, chain, contractAddress, sourceType } = req.body;
+    const { userId, email } = req.auth; // Get user info from Clerk auth
 
     if (!contractCode) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Contract code is required',
         details: 'Please provide the contract source code for analysis'
       });
     }
 
+    console.log(`Audit request from user: ${email} (${userId})`);
+
     // Analyze the contract
     const result = await analyzeContract(contractCode, {
       chain: chain || 'ethereum',
       contractAddress,
-      sourceType: sourceType || 'solidity'
+      sourceType: sourceType || 'solidity',
+      userId,
+      userEmail: email
     });
+
+    // Add user context to the response
+    result.auditMetadata = {
+      userId,
+      userEmail: email,
+      timestamp: new Date().toISOString(),
+      chain: chain || 'ethereum',
+      contractAddress
+    };
 
     res.status(200).json(result);
   } catch (error) {
@@ -178,3 +193,6 @@ module.exports = async (req, res) => {
     });
   }
 };
+
+// Export with Clerk authentication middleware
+module.exports = withAuth(auditHandler);
