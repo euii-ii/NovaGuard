@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NovaGard</title>
     
-    <link rel="shortcut icon" type="image/png" href="./public/favicon.png">
+    <link rel="shortcut icon" type="image/png" href="/favicon.png">
     <link rel="stylesheet" href="/style.css">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.2.0/fonts/remixicon.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/locomotive-scroll@3.5.4/dist/locomotive-scroll.css">
@@ -62,7 +62,7 @@
         <div id="page8">
             <div class="page8-bottom">
                 <h1>NovaGard</h1>
-                <a href="/index.html" style="padding: 10px 20px; border-radius: 50px; background-color: #0b48ed; border: 1px solid #fff; color: #fff; font-size: 15px; cursor: pointer; transition: all 0.3s ease; z-index: 99999; position: relative; text-decoration: none; display: inline-block;" onmouseover="this.style.backgroundColor='#fff'; this.style.color='#0b48ed';" onmouseout="this.style.backgroundColor='#0b48ed'; this.style.color='#fff';">Get Started</a>
+                <a href="http://localhost:5176/app" target="_blank" style="padding: 10px 20px; border-radius: 50px; background-color: #0b48ed; border: 1px solid #fff; color: #fff; font-size: 15px; cursor: pointer; transition: all 0.3s ease; z-index: 99999; position: relative; text-decoration: none; display: inline-block;" onmouseover="this.style.backgroundColor='#fff'; this.style.color='#0b48ed';" onmouseout="this.style.backgroundColor='#0b48ed'; this.style.color='#fff';">Payment Demo</a>
             </div>
             <video src="https://thisismagma.com/wp-content/themes/magma/assets/home/glass/1.webm?2" autoplay loop muted></video>
         </div>
@@ -138,7 +138,7 @@ It analyzes Solidity code, bytecode, or live deployments using LLMs to detect vu
             <h1>Become an
                 <br>
                 early adopter</h1>
-                <a href="/index.html" style="padding: 18px 30px; border: none; background-color: #0a3cce; color: #fff; border-radius: 50px; font-size: 16px; cursor: pointer; text-decoration: none; display: inline-block;">BOOK A DEMO</a>
+                <a href="http://localhost:5176/app" target="_blank" style="padding: 18px 30px; border: none; background-color: #0a3cce; color: #fff; border-radius: 50px; font-size: 16px; cursor: pointer; text-decoration: none; display: inline-block;">BOOK A DEMO</a>
         </div>
         <div id="page14">
             <div class="page14-inner">
@@ -168,16 +168,16 @@ It analyzes Solidity code, bytecode, or live deployments using LLMs to detect vu
         function openReactApp() {
             console.log('Get Started button clicked on landing page');
             console.log('Current location:', window.location.href);
-            console.log('Navigating to React app dashboard...');
+            console.log('Navigating to app dashboard...');
 
-            // Navigate to the React app
+            // Navigate directly to the React app running on Vite dev server
             try {
-                // Navigate to the main app
-                window.location.href = '/index.html';
+                // Navigate to the vulnerability dashboard page
+                window.location.href = 'http://localhost:5176/app';
             } catch (error) {
                 console.error('Navigation error:', error);
                 // Fallback: navigate to React app home
-                window.location.href = '/';
+                window.location.href = 'http://localhost:5176/';
             }
         }
         

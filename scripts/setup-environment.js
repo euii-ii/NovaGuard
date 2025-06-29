@@ -3,77 +3,96 @@
 const fs = require('fs');
 const path = require('path');
 
-console.log('🚀 Setting up DAO Smart Contract Auditor environment...\n');
+console.log('🚀 Setting up Flash Audit environment...\n');
 
 // Environment configurations
 const environments = {
   development: {
     frontend: {
-      VITE_API_BASE_URL: 'http://localhost:3001',
+      VITE_API_BASE_URL: '/api',
+      VITE_API_URL: '/api',
       VITE_APP_NAME: 'FlashAudit',
       VITE_APP_VERSION: '2.0.0',
-      VITE_BACKEND_PORT: '3001',
-      VITE_BACKEND_HOST: 'localhost',
       NODE_ENV: 'development',
       VITE_DEV_MODE: 'true',
       VITE_DEBUG_MODE: 'true',
       VITE_JWT_STORAGE_KEY: 'flashaudit_token',
-      VITE_ENABLE_AUTH: 'false',
+      VITE_ENABLE_AUTH: 'true',
       VITE_ENABLE_MULTI_CHAIN: 'true',
       VITE_ENABLE_AI_ANALYSIS: 'true',
       VITE_ENABLE_TEAM_COLLABORATION: 'true',
-      VITE_ENABLE_REAL_TIME_MONITORING: 'true'
+      VITE_ENABLE_REAL_TIME_MONITORING: 'true',
+      // Supabase Configuration
+      VITE_SUPABASE_URL: 'https://gqdbmvtgychgwztlbaus.supabase.co',
+      VITE_SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxZGJtdnRneWNoZ3d6dGxiYXVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA5NDc2MDAsImV4cCI6MjA2NjUyMzYwMH0.Q889SrVOiIFfKi2S9Ma4xVhjkAE3nKaE_B03G7S6Ibo',
+      // Clerk Configuration
+      VITE_CLERK_PUBLISHABLE_KEY: 'pk_test_ZnVua3ktcGFuZGEtNDYuY2xlcmsuYWNjb3VudHMuZGV2JA'
     },
-    backend: {
-      PORT: '3001',
+    api: {
       NODE_ENV: 'development',
+      // Supabase Configuration
+      SUPABASE_URL: 'https://gqdbmvtgychgwztlbaus.supabase.co',
+      SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxZGJtdnRneWNoZ3d6dGxiYXVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA5NDc2MDAsImV4cCI6MjA2NjUyMzYwMH0.Q889SrVOiIFfKi2S9Ma4xVhjkAE3nKaE_B03G7S6Ibo',
+      SUPABASE_SERVICE_ROLE_KEY: 'your-supabase-service-role-key',
+      // Clerk Configuration
+      CLERK_SECRET_KEY: 'your-clerk-secret-key',
+      CLERK_PUBLISHABLE_KEY: 'pk_test_ZnVua3ktcGFuZGEtNDYuY2xlcmsuYWNjb3VudHMuZGV2JA',
       // OpenRouter API Configuration
+      OPENROUTER_API_KEY: 'your-openrouter-api-key-here',
       OPENROUTER_API_KEY_KIMI: 'your-openrouter-api-key-here',
-      KIMI_MODEL: 'moonshot/kimi-dev-72b',
+      KIMI_MODEL: 'moonshotai/kimi-dev-72b:free',
       OPENROUTER_API_KEY_GEMMA: 'your-openrouter-api-key-here',
-      GEMMA_MODEL: 'google/gemma-2-3b-it',
+      GEMMA_MODEL: 'google/gemma-3n-e4b-it:free',
       OPENROUTER_BASE_URL: 'https://openrouter.ai/api/v1',
       DEFAULT_MODEL_STRATEGY: 'dual',
       // Blockchain RPC URLs
       ETHEREUM_RPC_URL: 'https://eth-mainnet.g.alchemy.com/v2/demo',
       POLYGON_RPC_URL: 'https://polygon-mainnet.g.alchemy.com/v2/demo',
       BSC_RPC_URL: 'https://bsc-dataseed.binance.org/',
-      APTOS_RPC_URL: 'https://fullnode.mainnet.aptoslabs.com/v1',
-      SOLANA_RPC_URL: 'https://api.mainnet-beta.solana.com',
-      SUI_RPC_URL: 'https://fullnode.mainnet.sui.io:443',
+      ARBITRUM_RPC_URL: 'https://arb1.arbitrum.io/rpc',
+      OPTIMISM_RPC_URL: 'https://mainnet.optimism.io',
+      BASE_RPC_URL: 'https://mainnet.base.org',
       // Security Configuration
       JWT_SECRET: 'smart-contract-auditor-secret-key-2024',
       RATE_LIMIT_WINDOW_MS: '900000',
       RATE_LIMIT_MAX_REQUESTS: '100',
-      // Database Configuration
-      DATABASE_URL: 'sqlite:./data/auditor.db',
-      // Features
-      ENABLE_REAL_TIME_MONITORING: 'false',
-      ENABLE_CHAINIDE_INTEGRATION: 'true',
-      CHAINIDE_WS_PORT: '8080',
-      LOG_LEVEL: 'info'
+      // Audit Configuration
+      MAX_CONTRACT_SIZE_BYTES: '1048576',
+      AUDIT_TIMEOUT_MS: '30000',
+      VULNERABILITY_THRESHOLD_HIGH: '80',
+      VULNERABILITY_THRESHOLD_MEDIUM: '50',
+      // Logging Configuration
+      LOG_LEVEL: 'info',
+      // TEE Monitor Configuration
+      TEE_LOG_ENABLED: 'true',
+      TEE_ENCRYPTION_KEY: 'your-development-tee-encryption-key',
+      // CORS Configuration
+      CORS_ORIGIN: '*',
+      SITE_URL: 'http://localhost:5174'
     }
   },
   production: {
     frontend: {
-      VITE_API_BASE_URL: 'https://your-production-api.com',
+      VITE_API_BASE_URL: '/api',
+      VITE_API_URL: '/api',
       VITE_APP_NAME: 'FlashAudit',
       VITE_APP_VERSION: '2.0.0',
       NODE_ENV: 'production',
+      VITE_NODE_ENV: 'production',
       VITE_DEV_MODE: 'false',
       VITE_DEBUG_MODE: 'false',
       VITE_ENABLE_AUTH: 'true',
       VITE_ENABLE_MULTI_CHAIN: 'true',
       VITE_ENABLE_AI_ANALYSIS: 'true',
       VITE_ENABLE_TEAM_COLLABORATION: 'true',
-      VITE_ENABLE_REAL_TIME_MONITORING: 'true'
+      VITE_ENABLE_REAL_TIME_MONITORING: 'true',
+      VITE_JWT_STORAGE_KEY: 'flashaudit_token'
     },
-    backend: {
-      PORT: '3001',
+    api: {
       NODE_ENV: 'production',
-      // Add production-specific configurations here
       LOG_LEVEL: 'warn',
-      ENABLE_REAL_TIME_MONITORING: 'true'
+      CORS_ORIGIN: 'https://your-vercel-app.vercel.app',
+      SITE_URL: 'https://your-vercel-app.vercel.app'
     }
   }
 };
@@ -105,18 +124,18 @@ function setupEnvironment(env = 'development') {
 
   // Ensure directories exist
   ensureDirectoryExists('frontend');
-  ensureDirectoryExists('backend');
-  ensureDirectoryExists('backend/data');
-  ensureDirectoryExists('backend/logs');
+  ensureDirectoryExists('api');
+  ensureDirectoryExists('logs');
+  ensureDirectoryExists('data');
   ensureDirectoryExists('scripts');
 
   // Create frontend .env file
   const frontendEnvPath = path.join('frontend', '.env');
   createEnvFile(frontendEnvPath, config.frontend);
 
-  // Create backend .env file
-  const backendEnvPath = path.join('backend', '.env');
-  createEnvFile(backendEnvPath, config.backend);
+  // Create API .env file (for local development)
+  const apiEnvPath = path.join('api', '.env');
+  createEnvFile(apiEnvPath, config.api);
 
   // Create .env.example files
   const frontendExamplePath = path.join('frontend', '.env.example');
@@ -126,18 +145,19 @@ function setupEnvironment(env = 'development') {
   }, {});
   createEnvFile(frontendExamplePath, frontendExampleConfig);
 
-  const backendExamplePath = path.join('backend', '.env.example');
-  const backendExampleConfig = Object.keys(config.backend).reduce((acc, key) => {
+  const apiExamplePath = path.join('api', '.env.example');
+  const apiExampleConfig = Object.keys(config.api).reduce((acc, key) => {
     acc[key] = `# ${key}`;
     return acc;
   }, {});
-  createEnvFile(backendExamplePath, backendExampleConfig);
+  createEnvFile(apiExamplePath, apiExampleConfig);
 
   console.log('\n🎉 Environment setup complete!');
   console.log('\nNext steps:');
   console.log('1. Install dependencies: npm run install:all');
-  console.log('2. Start development servers: npm run dev');
-  console.log('3. Check health: npm run check:health');
+  console.log('2. Start development server: npm run dev');
+  console.log('3. Deploy to Vercel: vercel --prod');
+  console.log('\n📝 Note: For production deployment, configure environment variables in Vercel dashboard');
 }
 
 // Check command line arguments

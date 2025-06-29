@@ -18,21 +18,21 @@ build/
 .env.development.local
 .env.test.local
 .env.production.local
-backend/.env
+api/.env
 frontend/.env
 
 # Logs
 logs/
 *.log
-backend/logs/
+logs/
 frontend/logs/
 
 # Database
 *.db
 *.sqlite
 *.sqlite3
-backend/data/
-backend/*.db
+data/
+*.db
 
 # IDE and editor files
 .vscode/

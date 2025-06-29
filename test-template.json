@@ -1,0 +1,20 @@
+{
+  "name": "Test ERC20 Token Project",
+  "description": "ERC-20 has emerged as a technical standard for all smart contracts on the Ethereum blockchain for a fungible token implementation.",
+  "type": "contract",
+  "template": "ERC-20 Showcase",
+  "network": "ethereum",
+  "contract_code": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.19;\n\nimport \"@openzeppelin/contracts/token/ERC20/ERC20.sol\";\n\ncontract MyToken is ERC20 {\n    constructor() ERC20(\"MyToken\", \"MTK\") {\n        _mint(msg.sender, 1000000 * 10 ** decimals());\n    }\n}",
+  "project_data": {
+    "template": "ERC-20 Showcase",
+    "category": "Token",
+    "network": "Ethereum",
+    "files": [
+      "contracts/MyToken.sol",
+      "contracts/IERC20.sol",
+      "test/MyToken.test.js",
+      "README.md",
+      "package.json"
+    ]
+  }
+}

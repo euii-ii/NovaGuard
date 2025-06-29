@@ -1,59 +1,56 @@
 #!/usr/bin/env node
 
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-console.log('🏥 DAO Smart Contract Auditor Health Check\n');
+console.log('🏥 Flash Audit Health Check\n');
 
-// Configuration
-const BACKEND_PORT = process.env.PORT || 3001;
-const FRONTEND_PORT = 5173;
-const TIMEOUT = 10000; // 10 seconds
+const FRONTEND_PORT = 5174;
 
 // Health check functions
-async function checkBackend() {
+async function checkAPI() {
   return new Promise((resolve) => {
+    // For serverless functions, we check if the API endpoints are accessible
+    // This would typically be done against the deployed Vercel URL
+    const apiUrl = process.env.VERCEL_URL || 'http://localhost:3000';
+    
     const options = {
-      hostname: 'localhost',
-      port: BACKEND_PORT,
-      path: '/health',
+      hostname: apiUrl.includes('localhost') ? 'localhost' : apiUrl.replace('https://', '').replace('http://', ''),
+      port: apiUrl.includes('localhost') ? 3000 : (apiUrl.includes('https') ? 443 : 80),
+      path: '/api/health',
       method: 'GET',
-      timeout: TIMEOUT
+      timeout: 5000
     };
 
-    const req = http.request(options, (res) => {
+    const client = apiUrl.includes('https') ? https : http;
+    
+    const req = client.request(options, (res) => {
       let data = '';
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
+      res.on('data', (chunk) => data += chunk);
       res.on('end', () => {
         try {
-          const healthData = JSON.parse(data);
+          const response = JSON.parse(data);
           resolve({
-            status: 'healthy',
+            status: res.statusCode === 200 ? 'healthy' : 'unhealthy',
             statusCode: res.statusCode,
-            data: healthData,
-            responseTime: Date.now() - startTime
+            response: response
           });
         } catch (error) {
           resolve({
             status: 'unhealthy',
-            statusCode: res.statusCode,
             error: 'Invalid JSON response',
-            responseTime: Date.now() - startTime
+            statusCode: res.statusCode
           });
         }
       });
     });
 
-    const startTime = Date.now();
-    
     req.on('error', (error) => {
       resolve({
         status: 'unhealthy',
-        error: error.message,
-        responseTime: Date.now() - startTime
+        error: error.message
       });
     });
 
@@ -61,8 +58,7 @@ async function checkBackend() {
       req.destroy();
       resolve({
         status: 'unhealthy',
-        error: 'Request timeout',
-        responseTime: TIMEOUT
+        error: 'Request timeout'
       });
     });
 
@@ -77,24 +73,20 @@ async function checkFrontend() {
       port: FRONTEND_PORT,
       path: '/',
       method: 'GET',
-      timeout: TIMEOUT
+      timeout: 5000
     };
 
     const req = http.request(options, (res) => {
       resolve({
         status: res.statusCode === 200 ? 'healthy' : 'unhealthy',
-        statusCode: res.statusCode,
-        responseTime: Date.now() - startTime
+        statusCode: res.statusCode
       });
     });
 
-    const startTime = Date.now();
-    
     req.on('error', (error) => {
       resolve({
         status: 'unhealthy',
-        error: error.message,
-        responseTime: Date.now() - startTime
+        error: error.message
       });
     });
 
@@ -102,8 +94,7 @@ async function checkFrontend() {
       req.destroy();
       resolve({
         status: 'unhealthy',
-        error: 'Request timeout',
-        responseTime: TIMEOUT
+        error: 'Request timeout'
       });
     });
 
@@ -111,149 +102,126 @@ async function checkFrontend() {
   });
 }
 
-function checkEnvironmentFiles() {
-  const files = [
-    'frontend/.env',
-    'backend/.env',
+function checkFiles() {
+  const requiredFiles = [
     'package.json',
     'frontend/package.json',
-    'backend/package.json'
+    'api/package.json',
+    'vercel.json'
   ];
 
-  const results = {};
+  const envFiles = {
+    'frontend/.env': { exists: false, required: true },
+    'api/.env': { exists: false, required: false }, // Optional for serverless
+    '.env.production.example': { exists: false, required: true }
+  };
+
+  // Check required files
+  const missingFiles = requiredFiles.filter(file => !fs.existsSync(file));
   
-  files.forEach(file => {
-    const filePath = path.join(process.cwd(), file);
-    results[file] = {
-      exists: fs.existsSync(filePath),
-      path: filePath
-    };
+  // Check environment files
+  Object.keys(envFiles).forEach(file => {
+    envFiles[file].exists = fs.existsSync(file);
   });
 
-  return results;
+  return { missingFiles, envFiles };
 }
 
 function checkDirectories() {
-  const directories = [
+  const requiredDirs = [
     'frontend',
-    'backend',
-    'backend/data',
-    'backend/logs',
+    'api',
     'scripts'
   ];
 
-  const results = {};
-  
-  directories.forEach(dir => {
-    const dirPath = path.join(process.cwd(), dir);
-    results[dir] = {
-      exists: fs.existsSync(dirPath),
-      path: dirPath
-    };
-  });
-
-  return results;
+  const missingDirs = requiredDirs.filter(dir => !fs.existsSync(dir));
+  return missingDirs;
 }
 
-function printStatus(name, result) {
+function printStatus(service, result) {
   const status = result.status === 'healthy' ? '✅' : '❌';
-  const responseTime = result.responseTime ? ` (${result.responseTime}ms)` : '';
-  
-  console.log(`${status} ${name}${responseTime}`);
+  console.log(`${status} ${service}: ${result.status}`);
   
   if (result.error) {
     console.log(`   Error: ${result.error}`);
   }
   
-  if (result.data) {
-    console.log(`   Version: ${result.data.version || 'Unknown'}`);
-    console.log(`   Environment: ${result.data.environment || 'Unknown'}`);
-    
-    if (result.data.services) {
-      console.log('   Services:');
-      Object.entries(result.data.services).forEach(([service, info]) => {
-        const serviceStatus = info.status === 'active' ? '✅' : '❌';
-        console.log(`     ${serviceStatus} ${service}: ${info.status}`);
-      });
-    }
+  if (result.statusCode) {
+    console.log(`   Status Code: ${result.statusCode}`);
+  }
+  
+  if (result.response) {
+    console.log(`   Version: ${result.response.version || 'unknown'}`);
+    console.log(`   Environment: ${result.response.environment || 'unknown'}`);
   }
   
   console.log();
 }
 
-function printFileStatus(name, result) {
-  const status = result.exists ? '✅' : '❌';
-  console.log(`${status} ${name}`);
-  if (!result.exists) {
-    console.log(`   Missing: ${result.path}`);
-  }
-}
-
-async function runHealthCheck() {
-  console.log('🔍 Checking services...\n');
-
-  // Check backend
-  console.log('Backend Service:');
-  const backendResult = await checkBackend();
-  printStatus('Backend API', backendResult);
-
-  // Check frontend (only if backend is healthy)
-  if (backendResult.status === 'healthy') {
-    console.log('Frontend Service:');
-    const frontendResult = await checkFrontend();
-    printStatus('Frontend App', frontendResult);
+async function main() {
+  // Check file structure
+  console.log('📁 File Structure:');
+  const { missingFiles, envFiles } = checkFiles();
+  
+  if (missingFiles.length === 0) {
+    console.log('✅ All required files present');
   } else {
-    console.log('❌ Frontend Service: Skipped (backend unhealthy)\n');
+    console.log('❌ Missing files:', missingFiles.join(', '));
   }
 
-  // Check environment files
-  console.log('📄 Checking configuration files...\n');
-  const envFiles = checkEnvironmentFiles();
-  Object.entries(envFiles).forEach(([file, result]) => {
-    printFileStatus(file, result);
+  Object.entries(envFiles).forEach(([file, info]) => {
+    const status = info.exists ? '✅' : (info.required ? '❌' : '⚠️');
+    const label = info.required ? 'required' : 'optional';
+    console.log(`${status} ${file} (${label})`);
   });
 
   // Check directories
-  console.log('\n📁 Checking directories...\n');
-  const directories = checkDirectories();
-  Object.entries(directories).forEach(([dir, result]) => {
-    printFileStatus(dir, result);
-  });
+  const missingDirs = checkDirectories();
+  if (missingDirs.length === 0) {
+    console.log('✅ All required directories present');
+  } else {
+    console.log('❌ Missing directories:', missingDirs.join(', '));
+  }
+
+  console.log();
+
+  // Check API (serverless functions)
+  console.log('🔌 API Services:');
+  const apiResult = await checkAPI();
+  printStatus('API Endpoints', apiResult);
+
+  // Check frontend (only if running locally)
+  console.log('🌐 Frontend Service:');
+  const frontendResult = await checkFrontend();
+  printStatus('Frontend Server', frontendResult);
 
   // Overall status
-  console.log('\n📊 Overall Status:');
-  const overallHealthy = backendResult.status === 'healthy';
-  const configComplete = Object.values(envFiles).every(f => f.exists);
-  const dirsComplete = Object.values(directories).every(d => d.exists);
-
-  console.log(`${overallHealthy ? '✅' : '❌'} Services: ${overallHealthy ? 'Healthy' : 'Unhealthy'}`);
-  console.log(`${configComplete ? '✅' : '❌'} Configuration: ${configComplete ? 'Complete' : 'Incomplete'}`);
-  console.log(`${dirsComplete ? '✅' : '❌'} Directory Structure: ${dirsComplete ? 'Complete' : 'Incomplete'}`);
-
-  if (!overallHealthy || !configComplete || !dirsComplete) {
-    console.log('\n🔧 Suggested fixes:');
-    
-    if (!configComplete) {
-      console.log('- Run: npm run setup:env');
-    }
-    
-    if (!dirsComplete) {
-      console.log('- Run: npm run setup');
-    }
+  console.log('📊 Overall Status:');
+  const overallHealthy = apiResult.status === 'healthy';
+  const configComplete = Object.values(envFiles).every(f => f.exists || !f.required);
+  
+  if (overallHealthy && configComplete) {
+    console.log('✅ System is healthy and ready');
+  } else {
+    console.log('❌ System has issues that need attention');
     
     if (!overallHealthy) {
-      console.log('- Check if backend is running: npm run dev:backend');
-      console.log('- Check backend logs for errors');
+      console.log('- API endpoints are not responding properly');
+      console.log('- Check Vercel deployment status');
+      console.log('- Verify environment variables in Vercel dashboard');
     }
     
-    process.exit(1);
-  } else {
-    console.log('\n🎉 All systems operational!');
+    if (!configComplete) {
+      console.log('- Some required configuration files are missing');
+      console.log('- Run: npm run setup:env');
+    }
   }
+
+  console.log('\n🔗 Useful URLs:');
+  console.log(`- Frontend (local): http://localhost:${FRONTEND_PORT}`);
+  console.log('- API Health: /api/health');
+  console.log('- API Status: /api/status');
+  console.log('- API Docs: /api/docs');
 }
 
-// Run the health check
-runHealthCheck().catch(error => {
-  console.error('❌ Health check failed:', error.message);
-  process.exit(1);
-});
+main().catch(console.error);

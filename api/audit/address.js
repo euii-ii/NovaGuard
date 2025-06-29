@@ -1,6 +1,21 @@
-// Vercel serverless function for contract address analysis
+// Enhanced Vercel serverless function for contract address analysis
 const axios = require('axios');
 const { withAuth } = require('../middleware/auth');
+const { createClient } = require('@supabase/supabase-js');
+
+// Initialize Supabase client
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+let supabaseAdmin;
+if (supabaseUrl && supabaseServiceKey) {
+  supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+}
 
 // CORS headers helper
 const setCorsHeaders = (res) => {
