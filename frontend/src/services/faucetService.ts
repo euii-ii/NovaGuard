@@ -21,6 +21,7 @@ export interface FaucetResult {
 
 export class FaucetService {
   private static faucets: { [key: string]: FaucetConfig } = {
+    // Ethereum Testnets
     sepolia: {
       name: 'Sepolia Testnet',
       chainId: 11155111,
@@ -41,6 +42,8 @@ export class FaucetService {
       cooldownHours: 24,
       requiresAuth: false
     },
+
+    // Polygon Testnets
     mumbai: {
       name: 'Polygon Mumbai',
       chainId: 80001,
@@ -51,6 +54,8 @@ export class FaucetService {
       cooldownHours: 24,
       requiresAuth: true
     },
+
+    // Arbitrum Testnets
     'arbitrum-goerli': {
       name: 'Arbitrum Goerli',
       chainId: 421613,
@@ -60,12 +65,85 @@ export class FaucetService {
       cooldownHours: 24,
       requiresAuth: false
     },
+    'arbitrum-sepolia': {
+      name: 'Arbitrum Sepolia',
+      chainId: 421614,
+      currency: 'ETH',
+      faucetUrl: 'https://bridge.arbitrum.io',
+      maxAmount: 0.1,
+      cooldownHours: 24,
+      requiresAuth: false
+    },
+
+    // Optimism Testnets
     'optimism-goerli': {
       name: 'Optimism Goerli',
       chainId: 420,
       currency: 'OpETH',
       faucetUrl: 'https://app.optimism.io/faucet',
       maxAmount: 0.2,
+      cooldownHours: 24,
+      requiresAuth: false
+    },
+    'optimism-sepolia': {
+      name: 'Optimism Sepolia',
+      chainId: 11155420,
+      currency: 'ETH',
+      faucetUrl: 'https://app.optimism.io/faucet',
+      maxAmount: 0.2,
+      cooldownHours: 24,
+      requiresAuth: false
+    },
+
+    // Base Testnets
+    'base-goerli': {
+      name: 'Base Goerli',
+      chainId: 84531,
+      currency: 'ETH',
+      faucetUrl: 'https://bridge.base.org',
+      maxAmount: 0.1,
+      cooldownHours: 24,
+      requiresAuth: false
+    },
+    'base-sepolia': {
+      name: 'Base Sepolia',
+      chainId: 84532,
+      currency: 'ETH',
+      faucetUrl: 'https://bridge.base.org',
+      maxAmount: 0.1,
+      cooldownHours: 24,
+      requiresAuth: false
+    },
+
+    // BSC Testnets
+    'bsc-testnet': {
+      name: 'BSC Testnet',
+      chainId: 97,
+      currency: 'tBNB',
+      faucetUrl: 'https://testnet.binance.org/faucet-smart',
+      maxAmount: 0.1,
+      cooldownHours: 24,
+      requiresAuth: false
+    },
+
+    // Avalanche Testnets
+    'avalanche-fuji': {
+      name: 'Avalanche Fuji',
+      chainId: 43113,
+      currency: 'AVAX',
+      faucetUrl: 'https://faucet.avax.network',
+      maxAmount: 2.0,
+      cooldownHours: 24,
+      requiresAuth: false
+    },
+
+    // Fantom Testnets
+    'fantom-testnet': {
+      name: 'Fantom Testnet',
+      chainId: 4002,
+      currency: 'FTM',
+      faucetUrl: 'https://faucet.fantom.network',
+      maxAmount: 10.0,
       cooldownHours: 24,
       requiresAuth: false
     }
@@ -276,7 +354,48 @@ export class FaucetService {
   }
 
   static getRecommendedTestnets(): string[] {
-    return ['sepolia', 'mumbai', 'arbitrum-goerli'];
+    return [
+      'sepolia',           // Ethereum - Most stable
+      'mumbai',            // Polygon - Fast and cheap
+      'arbitrum-sepolia',  // Arbitrum - L2 scaling
+      'optimism-sepolia',  // Optimism - L2 scaling
+      'base-sepolia',      // Base - Coinbase L2
+      'bsc-testnet',       // BSC - Alternative ecosystem
+      'avalanche-fuji'     // Avalanche - High throughput
+    ];
+  }
+
+  static getChainFaucets(chain: string): string[] {
+    const chainFaucets: { [key: string]: string[] } = {
+      ethereum: ['sepolia', 'goerli'],
+      polygon: ['mumbai'],
+      arbitrum: ['arbitrum-goerli', 'arbitrum-sepolia'],
+      optimism: ['optimism-goerli', 'optimism-sepolia'],
+      base: ['base-goerli', 'base-sepolia'],
+      bsc: ['bsc-testnet'],
+      avalanche: ['avalanche-fuji'],
+      fantom: ['fantom-testnet']
+    };
+    return chainFaucets[chain] || [];
+  }
+
+  static async requestTokensForChain(
+    chain: string,
+    walletAddress: string,
+    userEmail?: string
+  ): Promise<{ [network: string]: FaucetResult }> {
+    const networks = this.getChainFaucets(chain);
+    if (networks.length === 0) {
+      return {
+        [chain]: {
+          success: false,
+          message: `No faucets available for chain: ${chain}`,
+          error: 'Chain not supported'
+        }
+      };
+    }
+
+    return await this.getMultipleFaucetTokens(networks, walletAddress, userEmail);
   }
 
   static getFaucetInstructions(network: string): {
@@ -315,5 +434,142 @@ export class FaucetService {
         `Visit ${faucet.faucetUrl} for manual requests`
       ]
     };
+  }
+
+  // Enhanced methods for Flash-Audit integration
+  static async getFaucetBalance(network: string): Promise<{
+    available: boolean;
+    balance: string;
+    estimatedRequests: number;
+  }> {
+    const faucet = this.getFaucet(network);
+    if (!faucet) {
+      return {
+        available: false,
+        balance: '0',
+        estimatedRequests: 0
+      };
+    }
+
+    // Simulate faucet balance check
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    const balance = (Math.random() * 1000 + 100).toFixed(2);
+    const estimatedRequests = Math.floor(parseFloat(balance) / faucet.maxAmount);
+
+    return {
+      available: true,
+      balance: `${balance} ${faucet.currency}`,
+      estimatedRequests
+    };
+  }
+
+  static getNetworkAddInstructions(network: string): {
+    chainId: string;
+    rpcUrl: string;
+    blockExplorer: string;
+    instructions: string[];
+  } {
+    const faucet = this.getFaucet(network);
+    if (!faucet) {
+      return {
+        chainId: '',
+        rpcUrl: '',
+        blockExplorer: '',
+        instructions: ['Network not supported']
+      };
+    }
+
+    const networkConfigs: { [key: string]: any } = {
+      sepolia: {
+        chainId: '0xaa36a7',
+        rpcUrl: 'https://sepolia.infura.io/v3/YOUR_KEY',
+        blockExplorer: 'https://sepolia.etherscan.io'
+      },
+      mumbai: {
+        chainId: '0x13881',
+        rpcUrl: 'https://rpc-mumbai.maticvigil.com',
+        blockExplorer: 'https://mumbai.polygonscan.com'
+      },
+      'arbitrum-sepolia': {
+        chainId: '0x66eee',
+        rpcUrl: 'https://sepolia-rollup.arbitrum.io/rpc',
+        blockExplorer: 'https://sepolia.arbiscan.io'
+      },
+      'base-sepolia': {
+        chainId: '0x14a34',
+        rpcUrl: 'https://sepolia.base.org',
+        blockExplorer: 'https://sepolia.basescan.org'
+      },
+      'bsc-testnet': {
+        chainId: '0x61',
+        rpcUrl: 'https://data-seed-prebsc-1-s1.binance.org:8545',
+        blockExplorer: 'https://testnet.bscscan.com'
+      },
+      'avalanche-fuji': {
+        chainId: '0xa869',
+        rpcUrl: 'https://api.avax-test.network/ext/bc/C/rpc',
+        blockExplorer: 'https://testnet.snowtrace.io'
+      }
+    };
+
+    const config = networkConfigs[network] || networkConfigs.sepolia;
+
+    return {
+      chainId: config.chainId,
+      rpcUrl: config.rpcUrl,
+      blockExplorer: config.blockExplorer,
+      instructions: [
+        'Open MetaMask',
+        'Click "Add Network" or "Custom RPC"',
+        `Network Name: ${faucet.name}`,
+        `Chain ID: ${config.chainId}`,
+        `RPC URL: ${config.rpcUrl}`,
+        `Currency Symbol: ${faucet.currency}`,
+        `Block Explorer: ${config.blockExplorer}`,
+        'Save and switch to the network'
+      ]
+    };
+  }
+
+  static async requestTokensWithProgress(
+    network: string,
+    walletAddress: string,
+    progressCallback?: (step: number, message: string) => void
+  ): Promise<FaucetResult> {
+    try {
+      progressCallback?.(10, 'Validating request...');
+
+      const faucet = this.getFaucet(network);
+      if (!faucet) {
+        throw new Error(`Faucet not available for network: ${network}`);
+      }
+
+      progressCallback?.(30, 'Checking cooldown status...');
+
+      const cooldownStatus = this.getCooldownStatus(network, walletAddress);
+      if (cooldownStatus.inCooldown) {
+        throw new Error(`Cooldown active. Try again in ${cooldownStatus.remainingHours} hours.`);
+      }
+
+      progressCallback?.(50, 'Connecting to faucet...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      progressCallback?.(70, 'Requesting tokens...');
+      const result = await this.requestTokens(network, walletAddress);
+
+      progressCallback?.(90, 'Processing transaction...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      progressCallback?.(100, 'Request completed!');
+      return result;
+
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+        error: error.message
+      };
+    }
   }
 }

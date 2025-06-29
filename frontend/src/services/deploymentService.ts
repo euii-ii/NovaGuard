@@ -1,4 +1,6 @@
 // Deployment Service for FlashAudit - Mainnet & Testnet Deployment
+import { ProgressTrackingService } from './progressTrackingService';
+
 export interface NetworkConfig {
   name: string;
   chainId: number;
@@ -15,9 +17,13 @@ export interface DeploymentResult {
   contractAddress?: string;
   transactionHash?: string;
   gasUsed?: number;
-  deploymentCost?: string;
+  deploymentCost?: any;
   error?: string;
   blockExplorer?: string;
+  explorerUrl?: string;
+  contractExplorerUrl?: string;
+  networkInfo?: any;
+  operationId?: string;
 }
 
 export class DeploymentService {
