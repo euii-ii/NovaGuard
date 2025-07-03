@@ -2,6 +2,7 @@
 
 A Docker-based Smart Contract Security Auditor with Supabase backend and AI-powered analysis.
 
+
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Docker](https://img.shields.io/badge/docker-enabled-blue.svg)
 ![Supabase](https://img.shields.io/badge/supabase-backend-green.svg)
