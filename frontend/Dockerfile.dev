@@ -1,0 +1,24 @@
+# Development Dockerfile for frontend
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Create non-root user first
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+# Copy package files and install dependencies
+COPY package*.json ./
+RUN npm install --silent
+
+# Copy source code with proper ownership
+COPY --chown=nodejs:nodejs . .
+
+USER nodejs
+
+# Expose port
+EXPOSE 3000
+
+# Start the development server
+CMD ["npm", "run", "dev"]

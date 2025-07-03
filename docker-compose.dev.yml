@@ -1,0 +1,41 @@
+services:
+  # Frontend service for development
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: flash-audit-frontend-dev
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_SUPABASE_URL=${SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY}
+      - VITE_OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    restart: unless-stopped
+    command: npm run dev
+    networks:
+      - flash-audit-network
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: flash-audit-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    restart: unless-stopped
+    networks:
+      - flash-audit-network
+
+networks:
+  flash-audit-network:
+    driver: bridge
+
+volumes:
+  redis_dev_data:
+    driver: local
