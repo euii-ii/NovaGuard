@@ -1,4 +1,7 @@
-# 🛡️ Flash-Audit (NovaGuard)
+
+# 🛡️NovaGuard!
+
+
 
 A comprehensive AI-powered smart contract security auditing platform with **dual LLM analysis**, **multi-chain deployment**, and **advanced terminal interface**. This platform provides enterprise-grade security analysis and deployment capabilities across all major blockchain networks.
 
