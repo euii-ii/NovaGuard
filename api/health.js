@@ -1,5 +1,6 @@
 // Vercel serverless function for health check
 const { createClient } = require('@supabase/supabase-js');
+const { clerkClient } = require('@clerk/clerk-sdk-node');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -32,26 +33,45 @@ module.exports = async (req, res) => {
 
   try {
     let supabaseStatus = 'not configured';
-    
+    let clerkStatus = 'not configured';
+
     if (supabaseAdmin) {
       try {
         const { data, error } = await supabaseAdmin
           .from('users')
           .select('count')
           .limit(1);
-        
+
         supabaseStatus = error ? 'disconnected' : 'connected';
       } catch (error) {
         supabaseStatus = 'error';
       }
     }
 
+    // Check Clerk status
+    if (process.env.CLERK_SECRET_KEY) {
+      try {
+        const clerk = clerkClient({
+          secretKey: process.env.CLERK_SECRET_KEY
+        });
+        // Try to get organization list as a simple health check
+        await clerk.organizations.getOrganizationList({ limit: 1 });
+        clerkStatus = 'connected';
+      } catch (error) {
+        clerkStatus = 'error';
+      }
+    }
+
     res.status(200).json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      version: '2.0.0-vercel',
+      version: '2.0.0-vercel-clerk',
       environment: process.env.NODE_ENV || 'production',
       services: {
+        clerk: {
+          status: clerkStatus,
+          configured: process.env.CLERK_SECRET_KEY ? 'yes' : 'no'
+        },
         supabase: {
           status: supabaseStatus,
           url: process.env.SUPABASE_URL ? 'configured' : 'not configured'

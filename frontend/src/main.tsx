@@ -5,10 +5,16 @@ import './index.css'
 import { ClerkProvider } from '@clerk/clerk-react'
 
 // Import your Publishable Key
-const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
+const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || 'pk_test_ZnVua3ktcGFuZGEtNDYuY2xlcmsuYWNjb3VudHMuZGV2JA'
+
+console.log('Environment check:', {
+  NODE_ENV: import.meta.env.MODE,
+  CLERK_KEY: PUBLISHABLE_KEY ? 'Present' : 'Missing',
+  CLERK_KEY_LENGTH: PUBLISHABLE_KEY?.length || 0
+})
 
 if (!PUBLISHABLE_KEY) {
-  console.warn('Missing Clerk Publishable Key - using placeholder for development')
+  console.error('Missing Clerk Publishable Key')
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

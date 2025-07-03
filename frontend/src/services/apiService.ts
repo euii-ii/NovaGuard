@@ -1,5 +1,5 @@
 // API Service for connecting frontend to backend
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = '/api';
 
 export interface AuditRequest {
   contractCode: string;
@@ -110,18 +110,18 @@ class ApiService {
 
   // Audit endpoints
   async submitAudit(auditRequest: AuditRequest): Promise<AuditResponse> {
-    return this.makeRequest<AuditResponse>('/api/v1/audit/analyze', {
+    return this.makeRequest<AuditResponse>('/v1/audit/analyze', {
       method: 'POST',
       body: JSON.stringify(auditRequest),
     });
   }
 
   async getAuditStatus(auditId: string): Promise<AuditResponse> {
-    return this.makeRequest<AuditResponse>(`/api/v1/audit/status/${auditId}`);
+    return this.makeRequest<AuditResponse>(`/v1/audit/status/${auditId}`);
   }
 
   async getAuditResult(auditId: string): Promise<AuditResponse> {
-    return this.makeRequest<AuditResponse>(`/api/v1/audit/result/${auditId}`);
+    return this.makeRequest<AuditResponse>(`/v1/audit/result/${auditId}`);
   }
 
   // Upload contract file
@@ -130,7 +130,7 @@ class ApiService {
     formData.append('contract', file);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/audit/upload`, {
+      const response = await fetch(`${API_BASE_URL}/audit`, {
         method: 'POST',
         body: formData,
       });
@@ -151,7 +151,7 @@ class ApiService {
     contractCode: string,
     analysisType: 'standard' | 'comprehensive' = 'standard'
   ): Promise<AuditResponse> {
-    return this.makeRequest<AuditResponse>('/api/v1/audit/multi-agent', {
+    return this.makeRequest<AuditResponse>('/v1/audit/multi-agent', {
       method: 'POST',
       body: JSON.stringify({
         contractCode,
@@ -166,7 +166,7 @@ class ApiService {
     audits: AuditResponse[];
     total: number;
   }> {
-    return this.makeRequest(`/api/v1/audit/user/${userId}?limit=${limit}&offset=${offset}`);
+    return this.makeRequest(`/v1/audit/user/${userId}?limit=${limit}&offset=${offset}`);
   }
 
   // AI model status
@@ -178,7 +178,7 @@ class ApiService {
       responseTime?: number;
     }>;
   }> {
-    return this.makeRequest('/api/v1/ai/models/status');
+    return this.makeRequest('/v1/ai/models/status');
   }
 
   // Real-time monitoring endpoints
@@ -187,7 +187,7 @@ class ApiService {
     sessionId: string;
     message: string;
   }> {
-    return this.makeRequest('/api/v1/monitor/start', {
+    return this.makeRequest('/v1/monitor/start', {
       method: 'POST',
       body: JSON.stringify({ contractAddress, chain }),
     });
@@ -197,7 +197,7 @@ class ApiService {
     success: boolean;
     message: string;
   }> {
-    return this.makeRequest(`/api/v1/monitor/stop/${sessionId}`, {
+    return this.makeRequest(`/v1/monitor/stop/${sessionId}`, {
       method: 'POST',
     });
   }
@@ -208,7 +208,7 @@ class ApiService {
     status: string;
     supportedChains: string[];
   }> {
-    return this.makeRequest('/api/v1/chain-ide/status');
+    return this.makeRequest('/v1/chain-ide/status');
   }
 
   // Collaborative tools
@@ -217,7 +217,7 @@ class ApiService {
     workspaceId: string;
     message: string;
   }> {
-    return this.makeRequest('/api/v1/collaborative/workspace', {
+    return this.makeRequest('/v1/collaborative/workspace', {
       method: 'POST',
       body: JSON.stringify({ name, description }),
     });
@@ -233,7 +233,7 @@ class ApiService {
       createdAt: string;
     }>;
   }> {
-    return this.makeRequest(`/api/v1/collaborative/workspaces/${userId}`);
+    return this.makeRequest(`/v1/collaborative/workspaces/${userId}`);
   }
 }
 

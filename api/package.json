@@ -4,8 +4,16 @@
   "description": "Flash Audit API serverless functions for Vercel",
   "main": "index.js",
   "dependencies": {
+    "@clerk/clerk-sdk-node": "^4.13.14",
+    "@solidity-parser/parser": "^0.18.0",
     "@supabase/supabase-js": "^2.50.2",
-    "axios": "^1.6.2"
+    "axios": "^1.6.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.0.0",
+    "ethers": "^6.13.4",
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2",
+    "solc": "^0.8.26"
   },
   "engines": {
     "node": ">=18.0.0"

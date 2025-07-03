@@ -1,18 +1,41 @@
-# 🛡️NovaGuard
+# 🛡️ Flash-Audit (NovaGuard)
 
-A comprehensive AI-powered smart contract security auditing platform with modern web interface and robust backend services. This platform provides enterprise-grade security analysis for smart contracts across multiple blockchain networks.
+A comprehensive AI-powered smart contract security auditing platform with **dual LLM analysis**, **multi-chain deployment**, and **advanced terminal interface**. This platform provides enterprise-grade security analysis and deployment capabilities across all major blockchain networks.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Node.js](https://img.shields.io/badge/node.js-16+-green.svg)
 ![React](https://img.shields.io/badge/react-18+-blue.svg)
 ![TypeScript](https://img.shields.io/badge/typescript-5+-blue.svg)
+![Chains](https://img.shields.io/badge/chains-8+-purple.svg)
+![AI Models](https://img.shields.io/badge/AI-Dual%20LLM-orange.svg)
 
-## 🌟 Features
+## 🚀 Major Enhancements (v3.0)
 
-### 🔍 Smart Contract Analysis
+### 🤖 Dual LLM Vulnerability Scanning
+- **Security Analysis**: Kimi model (`moonshotai/kimi-dev-72b:free`) for vulnerability detection
+- **Code Quality**: Gemma model (`google/gemma-3n-e4b-it:free`) for gas optimization
+- **Chain-Specific Risks**: Tailored analysis for each blockchain network
+- **Real-time Progress**: Live tracking with comprehensive logging
+
+### 🌐 Multi-Chain Smart Contract Deployment
+- **8 Blockchain Networks**: Ethereum, Polygon, Arbitrum, Optimism, Base, BSC, Avalanche, Fantom
+- **Enhanced Gas Estimation**: Real-time cost calculation with 20% buffer
+- **Progress Tracking**: Step-by-step deployment monitoring
+- **Network Validation**: Comprehensive chain and network support
+
+### 💻 Advanced Terminal Interface
+- **50+ Commands**: `deploy`, `run`, `debug`, `scan`, `faucet`, and more
+- **Intelligent Help**: Context-aware assistance and troubleshooting
+- **Multi-Chain Operations**: Deploy and analyze across any supported chain
+- **Real-time Feedback**: Live progress updates and detailed error handling
+
+## 🌟 Core Features
+
+### 🔍 Enhanced Smart Contract Analysis
+- **Dual LLM Strategy**: Combined security and performance analysis
 - **Multi-input Support**: Analyze contracts by address or source code
-- **Multi-chain Compatibility**: Ethereum, Polygon, BSC, and testnets
-- **AI-Powered Detection**: Advanced vulnerability detection using LLM integration
+- **Comprehensive Reporting**: Vulnerability categorization with CWE mapping
+- **Performance Metrics**: Gas optimization with estimated savings
 - **Real-time Analysis**: Instant security scoring and risk assessment
 - **Bytecode Analysis**: Analyze deployed contracts without source code
 - **Gas Optimization**: Identify gas-inefficient patterns and suggest improvements
@@ -31,13 +54,44 @@ A comprehensive AI-powered smart contract security auditing platform with modern
 - **Detailed Reporting**: Line-by-line analysis with fix recommendations
 - **Confidence Scoring**: AI confidence levels for each vulnerability
 
-### 🚀 Modern Architecture
-- **Frontend**: React + TypeScript with modern UI/UX and responsive design
-- **Backend**: Node.js + Express with comprehensive RESTful API
-- **Security**: Rate limiting, CORS, helmet protection, input validation
-- **Monitoring**: TEE (Trusted Execution Environment) audit logging
-- **Database**: JSON-based audit history with integrity verification
-- **Caching**: Intelligent caching for improved performance
+### 🚀 Enhanced Deployment & Multi-Chain Support
+- **8 Blockchain Networks**: Ethereum, Polygon, Arbitrum, Optimism, Base, BSC, Avalanche, Fantom
+- **Mainnet & Testnet**: Full support for both production and development environments
+- **Real-time Gas Estimation**: Advanced cost calculation with 20% safety buffer
+- **Progress Tracking**: Step-by-step deployment monitoring with detailed logging
+- **Network Validation**: Comprehensive chain and network configuration validation
+- **Simulation Mode**: Test deployments without real blockchain transactions
+
+### 💻 Advanced Terminal Interface
+- **50+ Commands**: Comprehensive CLI including `deploy`, `run`, `debug`, `scan`, `faucet`
+- **Intelligent Help**: Context-aware assistance with detailed usage examples
+- **Multi-Chain Operations**: Deploy and analyze contracts across any supported chain
+- **Real-time Feedback**: Live progress updates with comprehensive error handling
+- **Smart Suggestions**: AI-powered command recommendations and troubleshooting
+
+### 📊 Real-time Progress Tracking & Logging
+- **Operation Monitoring**: Persistent tracking of all scan, deploy, and debug operations
+- **Progress Analytics**: Detailed statistics and performance metrics
+- **Database Persistence**: Supabase integration for comprehensive logging
+- **Export Functionality**: Download logs and reports for external analysis
+- **Real-time Updates**: Live progress callbacks and status notifications
+
+### 🔧 Enhanced Development Tools
+- **Dual LLM Analysis**: Combined security (Kimi) and performance (Gemma) analysis
+- **Multi-Chain Faucets**: Automated testnet token distribution across all networks
+- **Debug Analysis**: AI-powered contract debugging with performance insights
+- **Compliance Checking**: Automated ERC-20/ERC-721 standard verification
+- **Gas Optimization**: Detailed recommendations with estimated savings
+
+### 🚀 Enhanced Modern Architecture
+- **Frontend**: React + TypeScript with enhanced UI/UX and real-time progress tracking
+- **Backend**: Serverless Node.js with comprehensive RESTful API and dual LLM integration
+- **AI Integration**: OpenRouter API with Kimi and Gemma models for comprehensive analysis
+- **Multi-Chain Support**: 8 blockchain networks with comprehensive deployment capabilities
+- **Database**: Supabase integration with persistent logging and analytics
+- **Security**: Enhanced rate limiting, CORS, helmet protection, and input validation
+- **Monitoring**: Real-time operation tracking with comprehensive progress logging
+- **Caching**: Intelligent caching with enhanced performance optimization
 
 ## 🏗️ Project Structure
 
@@ -78,6 +132,44 @@ dao/
 │   └── vite.config.ts
 ├── .gitignore
 └── README.md
+```
+
+## 🌐 Supported Blockchain Networks
+
+### Mainnet Networks
+- **Ethereum** (Chain ID: 1) - The original smart contract platform
+- **Polygon** (Chain ID: 137) - High-speed, low-cost Ethereum sidechain
+- **Arbitrum** (Chain ID: 42161) - Optimistic rollup L2 solution
+- **Optimism** (Chain ID: 10) - Optimistic rollup with fast finality
+- **Base** (Chain ID: 8453) - Coinbase's L2 solution
+- **BSC** (Chain ID: 56) - Binance Smart Chain
+- **Avalanche** (Chain ID: 43114) - High-throughput blockchain
+- **Fantom** (Chain ID: 250) - Fast, scalable blockchain
+
+### Testnet Networks
+- **Ethereum**: Sepolia, Goerli
+- **Polygon**: Mumbai
+- **Arbitrum**: Goerli, Sepolia
+- **Optimism**: Goerli, Sepolia
+- **Base**: Goerli, Sepolia
+- **BSC**: Testnet
+- **Avalanche**: Fuji
+- **Fantom**: Testnet
+
+### Terminal Commands for Multi-Chain Operations
+```bash
+# Deploy to different chains
+deploy MyContract --chain ethereum --network sepolia
+deploy MyContract --chain polygon --network mumbai
+deploy MyContract --chain arbitrum --network goerli
+
+# Scan contracts on different chains
+scan 0x123...abc --chain ethereum
+scan 0x456...def --chain polygon
+
+# Get testnet tokens
+faucet --chain ethereum --network sepolia
+faucet --chain polygon --network mumbai
 ```
 
 ## 🚀 Quick Start
@@ -172,9 +264,86 @@ Create a `.env` file in the `frontend` directory:
 VITE_API_BASE_URL=http://localhost:3001
 ```
 
-## 🔧 API Documentation
+## 🔧 Enhanced API Documentation
 
-### Core Audit Endpoints
+### Enhanced Vulnerability Scanning (Dual LLM)
+
+#### Scan Contract by Address
+```http
+POST /api/v1/vulnerability/scan
+Content-Type: application/json
+Authorization: Bearer <clerk-token>
+
+{
+  "contractAddress": "0x123...abc",
+  "chain": "ethereum",
+  "options": {
+    "includeGasOptimization": true,
+    "includeComplianceCheck": true,
+    "scanType": "comprehensive"
+  }
+}
+```
+
+#### Scan Contract Code Directly
+```http
+POST /api/v1/vulnerability/scan
+Content-Type: application/json
+Authorization: Bearer <clerk-token>
+
+{
+  "contractCode": "pragma solidity ^0.8.0; contract Example { ... }",
+  "chain": "polygon",
+  "options": {
+    "scanType": "security-focused"
+  }
+}
+```
+
+### Multi-Chain Deployment
+
+#### Deploy Smart Contract
+```http
+POST /api/deployment/deploy
+Content-Type: application/json
+Authorization: Bearer <clerk-token>
+
+{
+  "contractCode": "pragma solidity ^0.8.0; contract MyToken { ... }",
+  "contractName": "MyToken",
+  "chain": "arbitrum",
+  "network": "goerli",
+  "constructorArgs": ["MyToken", "MTK", 18],
+  "gasLimit": "auto",
+  "gasPrice": "auto"
+}
+```
+
+### Real-time Progress Tracking
+
+#### Log Operation Progress
+```http
+POST /api/logs/operation
+Content-Type: application/json
+Authorization: Bearer <clerk-token>
+
+{
+  "operationId": "scan_123456789",
+  "operationType": "scan",
+  "status": "completed",
+  "progress": 100,
+  "logs": [...],
+  "result": {...}
+}
+```
+
+#### Get Operation Statistics
+```http
+GET /api/logs/operation?stats=true
+Authorization: Bearer <clerk-token>
+```
+
+### Core Audit Endpoints (Legacy)
 
 #### Audit by Source Code
 ```http
