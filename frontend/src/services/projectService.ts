@@ -13,7 +13,7 @@ export interface Project {
 }
 
 export class ProjectService {
-  private static API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002'
+  private static API_BASE_URL = '/api'
 
   // Helper method to get Clerk auth headers
   private static async getAuthHeaders(getToken?: () => Promise<string | null>): Promise<Record<string, string>> {
@@ -66,9 +66,9 @@ contract ${projectData.name.replace(/\s+/g, '')} {
       const headers = await this.getAuthHeaders(getToken)
 
       console.log('Creating project with data:', projectData)
-      console.log('Using API URL:', `${this.API_BASE_URL}/api/audit/contract`)
+      console.log('Using API URL:', `${this.API_BASE_URL}/audit/contract`)
 
-      const response = await fetch(`${this.API_BASE_URL}/api/audit/contract`, {
+      const response = await fetch(`${this.API_BASE_URL}/audit`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -107,14 +107,14 @@ contract ${projectData.name.replace(/\s+/g, '')} {
       const headers = await this.getAuthHeaders(getToken)
 
       // Get user's audit history which contains their contracts/projects
-      const response = await fetch(`${this.API_BASE_URL}/api/audit/history?limit=50`, {
+      const response = await fetch(`${this.API_BASE_URL}/projects`, {
         method: 'GET',
         headers
       })
 
       if (!response.ok) {
-        console.error('Failed to fetch projects:', response.statusText)
-        return []
+        console.warn('Backend API not available, will use demo data')
+        throw new Error('API not available')
       }
 
       const result = await response.json()
@@ -137,8 +137,9 @@ contract ${projectData.name.replace(/\s+/g, '')} {
 
       return []
     } catch (error) {
-      console.error('Error fetching projects:', error)
-      return []
+      console.warn('Error fetching projects, backend not available:', error)
+      // Throw error so App.tsx can handle with demo data
+      throw error
     }
   }
 
@@ -171,7 +172,7 @@ contract ${projectData.name.replace(/\s+/g, '')} {
       const headers = await this.getAuthHeaders(getToken)
 
       // Get specific audit result
-      const response = await fetch(`${this.API_BASE_URL}/api/audit/results/${projectId}`, {
+      const response = await fetch(`${this.API_BASE_URL}/projects?id=${projectId}`, {
         method: 'GET',
         headers
       })

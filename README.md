@@ -1,11 +1,25 @@
+
 # 🛡️NovaGuard!!
 
-A comprehensive AI-powered smart contract security auditing platform with modern web interface and robust backend services. This platform provides enterprise-grade security analysis for smart contracts across multiple blockchain networks.
+
+
+A Docker-based Smart Contract Security Auditor with Supabase backend and AI-powered analysis.
+
+
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Node.js](https://img.shields.io/badge/node.js-16+-green.svg)
+![Docker](https://img.shields.io/badge/docker-enabled-blue.svg)
+![Supabase](https://img.shields.io/badge/supabase-backend-green.svg)
 ![React](https://img.shields.io/badge/react-18+-blue.svg)
-![TypeScript](https://img.shields.io/badge/typescript-5+-blue.svg)
+
+## 🏗️ Architecture
+
+- **Frontend**: React + Vite (Dockerized)
+- **Backend**: Supabase Edge Functions
+- **Database**: Supabase PostgreSQL
+- **Authentication**: Clerk
+- **AI Analysis**: OpenRouter API (Kimi & Gemma models)
+- **Deployment**: Docker + Docker Compose
 
 ## 🌟 Features
 

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Frontend API Connection</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background-color: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Frontend API Connection Test</h1>
+    <p>This page tests the connection between the frontend and the API server.</p>
+    
+    <div id="results"></div>
+    
+    <button onclick="testHealthCheck()">Test Health Check</button>
+    <button onclick="testGetProjects()">Test Get Projects</button>
+    <button onclick="testCreateProject()">Test Create Project</button>
+    <button onclick="clearResults()">Clear Results</button>
+
+    <script>
+        const API_BASE = 'http://localhost:3002';
+        const resultsDiv = document.getElementById('results');
+
+        function addResult(type, title, content) {
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = `<strong>${title}</strong><br>${content}`;
+            resultsDiv.appendChild(div);
+        }
+
+        function clearResults() {
+            resultsDiv.innerHTML = '';
+        }
+
+        async function testHealthCheck() {
+            try {
+                addResult('info', '🔍 Testing Health Check', 'Sending request to /health...');
+                
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    addResult('success', '✅ Health Check Success', `Status: ${response.status}<br>Response: <pre>${JSON.stringify(data, null, 2)}</pre>`);
+                } else {
+                    addResult('error', '❌ Health Check Failed', `Status: ${response.status}<br>Response: <pre>${JSON.stringify(data, null, 2)}</pre>`);
+                }
+            } catch (error) {
+                addResult('error', '❌ Health Check Error', `Error: ${error.message}`);
+            }
+        }
+
+        async function testGetProjects() {
+            try {
+                addResult('info', '🔍 Testing Get Projects', 'Sending request to /api/projects...');
+                
+                const response = await fetch(`${API_BASE}/api/projects`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    addResult('success', '✅ Get Projects Success', `Status: ${response.status}<br>Projects Count: ${data.projects?.length || 0}<br>Response: <pre>${JSON.stringify(data, null, 2)}</pre>`);
+                } else {
+                    addResult('error', '❌ Get Projects Failed', `Status: ${response.status}<br>Response: <pre>${JSON.stringify(data, null, 2)}</pre>`);
+                }
+            } catch (error) {
+                addResult('error', '❌ Get Projects Error', `Error: ${error.message}`);
+            }
+        }
+
+        async function testCreateProject() {
+            try {
+                addResult('info', '🔍 Testing Create Project', 'Sending template project creation request...');
+                
+                const templateProject = {
+                    name: 'Frontend Test Project',
+                    description: 'Test project created from frontend test page',
+                    type: 'contract',
+                    template: 'Hello World',
+                    network: 'ethereum',
+                    contract_code: '// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.19;\\n\\ncontract HelloWorld {\\n    string public message = "Hello, World!";\\n}',
+                    project_data: {
+                        template: 'Hello World',
+                        category: 'Basic',
+                        network: 'Ethereum',
+                        files: ['contracts/HelloWorld.sol', 'README.md', 'package.json']
+                    }
+                };
+                
+                const response = await fetch(`${API_BASE}/api/projects`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(templateProject)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    addResult('success', '✅ Create Project Success', `Status: ${response.status}<br>Project ID: ${data.data?.id}<br>Project Name: ${data.data?.name}<br>Template: ${data.data?.template}<br>Network: ${data.data?.network}<br>Response: <pre>${JSON.stringify(data, null, 2)}</pre>`);
+                } else {
+                    addResult('error', '❌ Create Project Failed', `Status: ${response.status}<br>Response: <pre>${JSON.stringify(data, null, 2)}</pre>`);
+                }
+            } catch (error) {
+                addResult('error', '❌ Create Project Error', `Error: ${error.message}`);
+            }
+        }
+
+        // Auto-run health check on page load
+        window.onload = function() {
+            addResult('info', '🚀 Page Loaded', 'Ready to test API connection. Click buttons above to run tests.');
+        };
+    </script>
+</body>
+</html>
