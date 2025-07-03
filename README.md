@@ -1,6 +1,8 @@
-# Flash-Audit 🔍
+
+# 🛡️NovaGuard
 
 A Docker-based Smart Contract Security Auditor with Supabase backend and AI-powered analysis.
+
 
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
