@@ -1,4 +1,4 @@
-# 🛡️NovaGuard!
+# 🛡️NovaGuard!!
 
 A comprehensive AI-powered smart contract security auditing platform with modern web interface and robust backend services. This platform provides enterprise-grade security analysis for smart contracts across multiple blockchain networks.
 
